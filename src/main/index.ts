@@ -24,7 +24,12 @@ import {
   trashEntry,
   writeMarkdown
 } from './files'
-import { startWorkspaceWatcher, stopWorkspaceWatcher } from './watcher'
+import {
+  beginInternalWrite,
+  endInternalWrite,
+  startWorkspaceWatcher,
+  stopWorkspaceWatcher
+} from './watcher'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -127,37 +132,59 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.fileSave, async (_event, request: WriteFileRequest) => {
     const resolved = resolve(request.path)
     if (!isAuthorized(resolved)) throw new Error('文件不在授权范围内')
-    await writeMarkdown(resolved, request.content, request.newline, request.hasBom)
-    return { path: resolved, name: resolved.split(/[\\/]/).pop() ?? '', savedAt: Date.now() }
+    beginInternalWrite(resolved)
+    let succeeded = false
+    try {
+      await writeMarkdown(resolved, request.content, request.newline, request.hasBom)
+      succeeded = true
+      return { path: resolved, name: resolved.split(/[\\/]/).pop() ?? '', savedAt: Date.now() }
+    } finally {
+      endInternalWrite(resolved, succeeded)
+    }
   })
 
-  ipcMain.handle(IPC_CHANNELS.fileSaveAs, async (_event, payload: { defaultName?: string; content: string; newline: '\r\n' | '\n'; hasBom: boolean }) => {
-    const result = await dialog.showSaveDialog(getWindow(), {
-      title: '保存 Markdown 文件',
-      defaultPath: payload.defaultName || '未命名.md',
-      filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
-    })
-    if (result.canceled || !result.filePath) return null
+  ipcMain.handle(
+    IPC_CHANNELS.fileSaveAs,
+    async (
+      _event,
+      payload: { defaultName?: string; content: string; newline: '\r\n' | '\n'; hasBom: boolean }
+    ) => {
+      const result = await dialog.showSaveDialog(getWindow(), {
+        title: '保存 Markdown 文件',
+        defaultPath: payload.defaultName || '未命名.md',
+        filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+      })
+      if (result.canceled || !result.filePath) return null
 
-    const filePath = resolve(result.filePath)
-    addFileRoot(filePath)
-    await addRecentFile(filePath)
-    await writeMarkdown(filePath, payload.content, payload.newline, payload.hasBom)
-    return { path: filePath, name: filePath.split(/[\\/]/).pop() ?? '', savedAt: Date.now() }
-  })
+      const filePath = resolve(result.filePath)
+      addFileRoot(filePath)
+      await addRecentFile(filePath)
+      await writeMarkdown(filePath, payload.content, payload.newline, payload.hasBom)
+      return { path: filePath, name: filePath.split(/[\\/]/).pop() ?? '', savedAt: Date.now() }
+    }
+  )
 
-  ipcMain.handle(IPC_CHANNELS.fileCreate, async (_event, payload: { directory: string; name: string }) => {
-    const node = await createMarkdownFile(payload.directory, payload.name)
-    return node
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.fileCreate,
+    async (_event, payload: { directory: string; name: string }) => {
+      const node = await createMarkdownFile(payload.directory, payload.name)
+      return node
+    }
+  )
 
-  ipcMain.handle(IPC_CHANNELS.fileCreateFolder, async (_event, payload: { directory: string; name: string }) => {
-    return createFolder(payload.directory, payload.name)
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.fileCreateFolder,
+    async (_event, payload: { directory: string; name: string }) => {
+      return createFolder(payload.directory, payload.name)
+    }
+  )
 
-  ipcMain.handle(IPC_CHANNELS.fileRename, async (_event, payload: { path: string; name: string }) => {
-    return renameEntry(payload.path, payload.name)
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.fileRename,
+    async (_event, payload: { path: string; name: string }) => {
+      return renameEntry(payload.path, payload.name)
+    }
+  )
 
   ipcMain.handle(IPC_CHANNELS.fileTrash, async (_event, target: string) => {
     await trashEntry(target)
@@ -167,9 +194,12 @@ function registerIpcHandlers(): void {
     await revealEntry(target)
   })
 
-  ipcMain.handle(IPC_CHANNELS.imageImport, async (_event, payload: { name: string; data: Uint8Array; targetDir: string }) => {
-    return importImage(payload)
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.imageImport,
+    async (_event, payload: { name: string; data: Uint8Array; targetDir: string }) => {
+      return importImage(payload)
+    }
+  )
 
   ipcMain.handle(IPC_CHANNELS.windowMinimize, () => getWindow().minimize())
   ipcMain.handle(IPC_CHANNELS.windowToggleMaximize, () => {
@@ -292,6 +322,3 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
-
-
-

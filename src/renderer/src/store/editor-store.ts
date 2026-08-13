@@ -70,6 +70,7 @@ interface EditorStore {
   closeTab: (key: string) => void
   updateActiveMarkdown: (viewMarkdown: string) => void
   updateActiveRawMarkdown: (rawMarkdown: string) => void
+  saveDocument: (key: string) => Promise<boolean>
   saveActive: () => Promise<boolean>
   saveActiveAs: () => Promise<boolean>
   setSaving: (key: string, saving: boolean) => void
@@ -112,6 +113,7 @@ function untitledDocument(): OpenDocument {
 const storedTheme = (localStorage.getItem('inkdown.theme') as ThemeMode | null) ?? 'light'
 const storedSidebar = localStorage.getItem('inkdown.sidebar') !== '0'
 const storedOutline = localStorage.getItem('inkdown.outline') !== '0'
+const documentSaveQueues = new Map<string, Promise<boolean>>()
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   workspaceRoot: null,
@@ -192,14 +194,40 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
   handleWorkspaceChange: async (directory) => {
     await get().refreshDirectory(directory)
-    const openDocs = get().openDocs
-    for (const doc of Object.values(openDocs)) {
+    const candidates = Object.values(get().openDocs)
+    for (const doc of candidates) {
       if (!doc.diskPath || !isInsideDir(directory, doc.diskPath)) continue
       if (doc.rawMarkdown !== doc.savedRawMarkdown) continue
+      const expectedPath = doc.diskPath
+      const expectedRawMarkdown = doc.rawMarkdown
+      const expectedSavedRawMarkdown = doc.savedRawMarkdown
       try {
-        const data = await window.api.file.read(doc.diskPath)
+        const data = await window.api.file.read(expectedPath)
         const next = dataToDocument(data)
-        set((state) => ({ openDocs: { ...state.openDocs, [doc.key]: next } }))
+        set((state) => {
+          const current = state.openDocs[doc.key]
+          if (
+            !current ||
+            current.diskPath !== expectedPath ||
+            current.rawMarkdown !== expectedRawMarkdown ||
+            current.savedRawMarkdown !== expectedSavedRawMarkdown
+          ) {
+            return state
+          }
+          if (
+            next.rawMarkdown === current.rawMarkdown &&
+            next.newline === current.newline &&
+            next.hasBom === current.hasBom
+          ) {
+            return state
+          }
+          return {
+            openDocs: {
+              ...state.openDocs,
+              [doc.key]: { ...next, key: current.key, saving: current.saving }
+            }
+          }
+        })
       } catch {
         // 文件可能已被删除或锁定，保留当前缓冲区。
       }
@@ -222,7 +250,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   openData: (data) => {
     const doc = dataToDocument(data)
     set((state) => {
-      const alreadyOpen = Object.values(state.openDocs).some((item) => item.diskPath === doc.diskPath)
+      const alreadyOpen = Object.values(state.openDocs).some(
+        (item) => item.diskPath === doc.diskPath
+      )
       if (alreadyOpen) {
         return {
           openDocs: { ...state.openDocs, [doc.key]: doc },
@@ -268,7 +298,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!activeKey) return
     const doc = openDocs[activeKey]
     if (!doc) return
-    const viewMarkdown = doc.diskPath ? expandLocalImagePaths(rawMarkdown, doc.diskPath) : rawMarkdown
+    const viewMarkdown = doc.diskPath
+      ? expandLocalImagePaths(rawMarkdown, doc.diskPath)
+      : rawMarkdown
     set((state) => ({
       openDocs: { ...state.openDocs, [activeKey]: { ...doc, rawMarkdown, viewMarkdown } }
     }))
@@ -278,7 +310,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!activeKey) return
     const doc = openDocs[activeKey]
     if (!doc) return
-    const rawMarkdown = doc.diskPath ? collapseInkdownImagePaths(viewMarkdown, doc.diskPath) : viewMarkdown
+    const rawMarkdown = doc.diskPath
+      ? collapseInkdownImagePaths(viewMarkdown, doc.diskPath)
+      : viewMarkdown
     set((state) => ({
       openDocs: {
         ...state.openDocs,
@@ -286,39 +320,68 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       }
     }))
   },
+  saveDocument: (key) => {
+    const previous = documentSaveQueues.get(key) ?? Promise.resolve(true)
+    const queued = previous
+      .catch(() => false)
+      .then(async () => {
+        const doc = get().openDocs[key]
+        if (!doc) return false
+        if (!doc.diskPath) {
+          return get().activeKey === key ? get().saveActiveAs() : false
+        }
+        if (doc.rawMarkdown === doc.savedRawMarkdown) return true
+
+        const diskPath = doc.diskPath
+        const rawMarkdown = doc.rawMarkdown
+        const newline = doc.newline
+        const hasBom = doc.hasBom
+        get().setSaving(key, true)
+
+        try {
+          const result = await window.api.file.save({
+            path: diskPath,
+            content: rawMarkdown,
+            newline,
+            hasBom
+          })
+          set((state) => {
+            const current = state.openDocs[key]
+            if (!current || current.diskPath !== diskPath) return state
+            return {
+              openDocs: {
+                ...state.openDocs,
+                [key]: {
+                  ...current,
+                  diskPath: result.path,
+                  name: basename(result.path),
+                  savedRawMarkdown: rawMarkdown,
+                  saving: false
+                }
+              }
+            }
+          })
+          return true
+        } catch (error) {
+          get().setSaving(key, false)
+          toast.error('保存失败', { description: String(error) })
+          return false
+        }
+      })
+
+    documentSaveQueues.set(key, queued)
+    void queued.finally(() => {
+      if (documentSaveQueues.get(key) === queued) documentSaveQueues.delete(key)
+    })
+    return queued
+  },
   saveActive: async () => {
     const { activeKey, openDocs } = get()
     if (!activeKey) return false
     const doc = openDocs[activeKey]
     if (!doc) return false
     if (!doc.diskPath) return get().saveActiveAs()
-
-    get().setSaving(activeKey, true)
-    try {
-      const result = await window.api.file.save({
-        path: doc.diskPath,
-        content: doc.rawMarkdown,
-        newline: doc.newline,
-        hasBom: doc.hasBom
-      })
-      set((state) => ({
-        openDocs: {
-          ...state.openDocs,
-          [activeKey]: {
-            ...state.openDocs[activeKey],
-            diskPath: result.path,
-            name: basename(result.path),
-            savedRawMarkdown: doc.rawMarkdown,
-            saving: false
-          }
-        }
-      }))
-      return true
-    } catch (error) {
-      get().setSaving(activeKey, false)
-      toast.error('保存失败', { description: String(error) })
-      return false
-    }
+    return get().saveDocument(activeKey)
   },
   saveActiveAs: async () => {
     const { activeKey, openDocs } = get()
@@ -338,18 +401,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         get().setSaving(activeKey, false)
         return false
       }
-      set((state) => ({
-        openDocs: {
-          ...state.openDocs,
-          [activeKey]: {
-            ...state.openDocs[activeKey],
-            diskPath: result.path,
-            name: result.name,
-            savedRawMarkdown: doc.rawMarkdown,
-            saving: false
+      set((state) => {
+        const current = state.openDocs[activeKey]
+        if (!current) return state
+        return {
+          openDocs: {
+            ...state.openDocs,
+            [activeKey]: {
+              ...current,
+              diskPath: result.path,
+              name: result.name,
+              savedRawMarkdown: doc.rawMarkdown,
+              saving: false
+            }
           }
         }
-      }))
+      })
       return true
     } catch (error) {
       get().setSaving(activeKey, false)
@@ -365,6 +432,3 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     })
   }
 }))
-
-
-

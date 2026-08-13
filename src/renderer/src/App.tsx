@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { Toaster as SonnerToaster } from 'sonner'
 import { useEditorStore } from './store/editor-store'
@@ -13,9 +13,20 @@ function App(): React.JSX.Element {
   const theme = useEditorStore((state) => state.theme)
   const sidebarOpen = useEditorStore((state) => state.sidebarOpen)
   const outlineOpen = useEditorStore((state) => state.outlineOpen)
-  const openDocs = useEditorStore((state) => state.openDocs)
   const activeKey = useEditorStore((state) => state.activeKey)
-  const activeDoc = activeKey ? openDocs[activeKey] : null
+  const activeRawMarkdown = useEditorStore((state) =>
+    activeKey ? (state.openDocs[activeKey]?.rawMarkdown ?? null) : null
+  )
+  const activeSavedRawMarkdown = useEditorStore((state) =>
+    activeKey ? (state.openDocs[activeKey]?.savedRawMarkdown ?? null) : null
+  )
+  const activeDiskPath = useEditorStore((state) =>
+    activeKey ? (state.openDocs[activeKey]?.diskPath ?? null) : null
+  )
+  const dirtyCount = useEditorStore(
+    (state) =>
+      Object.values(state.openDocs).filter((doc) => doc.rawMarkdown !== doc.savedRawMarkdown).length
+  )
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
@@ -85,22 +96,24 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  useEffect(() => {
-    const dirtyCount = Object.values(openDocs).filter(
-      (doc) => doc.rawMarkdown !== doc.savedRawMarkdown
-    ).length
-    window.api.app.setDirtyCount(dirtyCount)
-  }, [openDocs])
+  useEffect(() => window.api.app.setDirtyCount(dirtyCount), [dirtyCount])
 
   useEffect(() => {
-    if (!activeDoc?.diskPath || activeDoc.rawMarkdown === activeDoc.savedRawMarkdown) return
+    if (
+      !activeKey ||
+      !activeDiskPath ||
+      activeRawMarkdown === null ||
+      activeRawMarkdown === activeSavedRawMarkdown
+    ) {
+      return
+    }
     const timer = window.setTimeout(() => {
-      void useEditorStore.getState().saveActive()
+      void useEditorStore.getState().saveDocument(activeKey)
     }, 800)
     return () => window.clearTimeout(timer)
-  }, [activeDoc?.diskPath, activeDoc?.rawMarkdown, activeDoc?.savedRawMarkdown])
+  }, [activeKey, activeDiskPath, activeRawMarkdown, activeSavedRawMarkdown])
 
-  const outlineItems = parseOutline(activeDoc?.rawMarkdown ?? '')
+  const outlineItems = useMemo(() => parseOutline(activeRawMarkdown ?? ''), [activeRawMarkdown])
 
   return (
     <div className="flex h-full flex-col">
@@ -135,4 +148,3 @@ function App(): React.JSX.Element {
 }
 
 export default App
-
