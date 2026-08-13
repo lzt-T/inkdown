@@ -97,7 +97,7 @@ export function SourceEditor({
   }, [headingTarget, outline, onConsumeHeadingTarget])
 
   return (
-    <div className="h-full overflow-hidden">
+    <div className="inkdown-source-surface min-h-0 flex-1 overflow-hidden">
       <CodeMirror
         ref={ref}
         value={value}

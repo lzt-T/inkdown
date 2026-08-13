@@ -52,7 +52,6 @@
   --border: #d9e0dd;
   --input: #d9e0dd;
   --ring: #0f766e;
-  --editor-elevated: #eaf0ed;
 }
 
 .dark {
@@ -74,7 +73,6 @@
   --border: #2a3733;
   --input: #2a3733;
   --ring: #5eead4;
-  --editor-elevated: #1d2724;
 }
 
 * {
@@ -102,57 +100,40 @@ button {
   cursor: default;
 }
 
-.zt-md-light {
-  --zt-bg: var(--background);
-  --zt-surface: var(--card);
-  --zt-elevated: var(--editor-elevated);
-  --zt-fg: var(--foreground);
-  --zt-muted: var(--muted-foreground);
-  --zt-border: var(--border);
-  --zt-primary: var(--primary);
-  --zt-primary-foreground: var(--primary-foreground);
-  --zt-secondary: #0d9488;
-  --zt-destructive: var(--destructive);
-  --zt-destructive-foreground: #ffffff;
-  --zt-glow: transparent;
-  --zt-font: var(--font-sans);
-  --zt-font-display: var(--font-sans);
-  --zt-radius: var(--radius);
-  --zt-radius-lg: calc(var(--radius) + 4px);
+.inkdown-editor-surface > .zt-md {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.zt-md-dark {
-  --zt-bg: var(--background);
-  --zt-surface: var(--card);
-  --zt-elevated: var(--editor-elevated);
-  --zt-fg: var(--foreground);
-  --zt-muted: var(--muted-foreground);
-  --zt-border: var(--border);
-  --zt-primary: var(--primary);
-  --zt-primary-foreground: var(--primary-foreground);
-  --zt-secondary: #99f6e4;
-  --zt-destructive: var(--destructive);
-  --zt-destructive-foreground: #1f0b0d;
-  --zt-glow: transparent;
-  --zt-font: var(--font-sans);
-  --zt-font-display: var(--font-sans);
-  --zt-radius: var(--radius);
-  --zt-radius-lg: calc(var(--radius) + 4px);
+.inkdown-editor-surface > .zt-md > .zt-md-body {
+  min-height: 0 !important;
+  flex: 1 1 0%;
+  overflow: hidden;
 }
 
-.zt-md-editor,
-.zt-md-editor .ProseMirror {
+.inkdown-editor-surface .zt-md-editor {
+  height: 100%;
+  min-height: 0 !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.inkdown-editor-surface .zt-md-editor .ProseMirror {
   min-height: 100%;
 }
 
-.zt-md-editor .ProseMirror {
-  max-width: 820px;
-  margin-inline: auto;
-  padding: 40px 28px 120px;
+.inkdown-source-surface > .cm-theme {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.cm-editor {
+.inkdown-source-surface > .cm-theme > .cm-editor {
   height: 100%;
+  min-height: 0;
   font-size: 15px;
 }
 

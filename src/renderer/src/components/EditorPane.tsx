@@ -23,29 +23,31 @@ export function EditorPane(): React.JSX.Element {
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col bg-background">
       <TabsBar />
-      {!activeDoc ? (
-        <Welcome />
-      ) : mode === 'wysiwyg' ? (
-        <MilkdownSurface
-          value={activeDoc.viewMarkdown}
-          theme={theme}
-          documentPath={activeDoc.diskPath}
-          headingTarget={headingTarget}
-          onChange={updateActiveMarkdown}
-          onActiveHeadingChange={setActiveHeading}
-          onConsumeHeadingTarget={consumeHeadingTarget}
-        />
-      ) : (
-        <SourceEditor
-          value={activeDoc.rawMarkdown}
-          theme={theme}
-          outline={outline}
-          headingTarget={headingTarget}
-          onChange={updateActiveRawMarkdown}
-          onActiveHeadingChange={setActiveHeading}
-          onConsumeHeadingTarget={consumeHeadingTarget}
-        />
-      )}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {!activeDoc ? (
+          <Welcome />
+        ) : mode === 'wysiwyg' ? (
+          <MilkdownSurface
+            value={activeDoc.viewMarkdown}
+            theme={theme}
+            documentPath={activeDoc.diskPath}
+            headingTarget={headingTarget}
+            onChange={updateActiveMarkdown}
+            onActiveHeadingChange={setActiveHeading}
+            onConsumeHeadingTarget={consumeHeadingTarget}
+          />
+        ) : (
+          <SourceEditor
+            value={activeDoc.rawMarkdown}
+            theme={theme}
+            outline={outline}
+            headingTarget={headingTarget}
+            onChange={updateActiveRawMarkdown}
+            onActiveHeadingChange={setActiveHeading}
+            onConsumeHeadingTarget={consumeHeadingTarget}
+          />
+        )}
+      </div>
     </main>
   )
 }
