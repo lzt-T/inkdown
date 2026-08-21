@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
-import { basename, dirname, extname, join, resolve } from 'path'
+import { basename, dirname, extname, join, relative, resolve } from 'path'
 import { shell } from 'electron'
-import { isAuthorized } from './security'
+import { isAuthorized, isInside } from './security'
 import { MARKDOWN_EXTENSIONS, type FileNode, type ImportImageResult, type OpenFileData } from '../shared/contracts'
 
 
@@ -108,6 +108,7 @@ export async function importImage(input: {
   name: string
   data: Uint8Array
   targetDir: string
+  documentDir: string
 }): Promise<ImportImageResult> {
   const targetDir = resolve(input.targetDir)
   if (!isAuthorized(targetDir)) throw new Error('目标目录不在授权范围内')
@@ -116,11 +117,15 @@ export async function importImage(input: {
   const fileName = sanitizeFileName(input.name)
   const destination = await uniquePath(targetDir, fileName)
   await fs.writeFile(destination, Buffer.from(input.data))
+  // Relative path is available only when the image lives inside the document directory.
+  const relativePath = isInside(input.documentDir, destination)
+    ? relative(resolve(input.documentDir), destination).replace(/\\/g, '/')
+    : null
 
   return {
     src: fileToInkdownUrl(destination),
     fileName: basename(destination),
-    relativePath: `assets/${basename(destination)}`
+    relativePath
   }
 }
 

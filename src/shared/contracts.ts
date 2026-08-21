@@ -1,5 +1,12 @@
 export type ThemeMode = 'light' | 'dark'
 export type EditorMode = 'wysiwyg' | 'source'
+export type ImageStorageMode = 'relative' | 'global'
+
+export interface ImageStorageSettings {
+  mode: ImageStorageMode
+  relativeDirectory: string
+  globalDirectory: string | null
+}
 
 export interface FileNode {
   name: string
@@ -32,7 +39,7 @@ export interface SaveFileResult {
 export interface ImportImageRequest {
   name: string
   data: Uint8Array
-  targetDir: string
+  documentPath: string
 }
 
 export interface ImportImageResult {
@@ -50,6 +57,7 @@ export interface RecentState {
 export interface PersistedState {
   recent: RecentState
   theme: ThemeMode
+  imageStorage: ImageStorageSettings
   windowBounds: { width: number; height: number; x?: number; y?: number } | null
 }
 
@@ -65,8 +73,10 @@ export type MenuAction =
   | 'toggle-source'
   | 'toggle-theme'
 
+// Markdown extensions define files recognized by workspace scanning and dialogs.
 export const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown'])
 
+// IPC channels centralize communication names shared by all Electron processes.
 export const IPC_CHANNELS = {
   workspaceOpen: 'workspace:open',
   workspaceOpenPath: 'workspace:open-path',
@@ -84,6 +94,7 @@ export const IPC_CHANNELS = {
   fileReveal: 'file:reveal',
   fileChanged: 'file:changed',
   imageImport: 'image:import',
+  imageSelectDirectory: 'image:select-directory',
   windowMinimize: 'window:minimize',
   windowToggleMaximize: 'window:toggle-maximize',
   windowClose: 'window:close',

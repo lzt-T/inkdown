@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { MilkdownEditor } from 'zt-react-milkdown'
 import { toast } from 'sonner'
-import { dirname } from '../lib/markdown-paths'
 
+/** 将本地图片文件读取为可嵌入的 Data URL。 */
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -12,6 +12,7 @@ function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
+/** 渲染支持本地图片导入的 Milkdown 编辑器。 */
 export function MilkdownSurface({
   value,
   theme,
@@ -31,6 +32,7 @@ export function MilkdownSurface({
 }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
 
+  /** 将图片导入文档资源目录并返回编辑器可访问地址。 */
   const handleUpload = async (file: File): Promise<string> => {
     if (!documentPath) {
       toast.info('文档尚未保存，图片将以 Data URL 嵌入')
@@ -42,13 +44,20 @@ export function MilkdownSurface({
       const result = await window.api.image.import({
         name: file.name || 'image.png',
         data,
-        targetDir: `${dirname(documentPath)}/assets`
+        documentPath
       })
       return result.src
     } catch (error) {
       toast.error('图片导入失败，已回退为 Data URL', { description: String(error) })
       return fileToDataUrl(file)
     }
+  }
+
+  // 图片上传配置显式允许由主进程授权保护的本地文件协议。
+  const imageUploadConfig = {
+    upload: handleUpload,
+    maxFileSize: 10 * 1024 * 1024,
+    allowedProtocols: ['inkdown-file:']
   }
 
   useEffect(() => {
@@ -111,7 +120,7 @@ export function MilkdownSurface({
         maxHeight="100%"
         debounceMs={160}
         className="h-full"
-        imageUpload={{ upload: handleUpload, maxFileSize: 10 * 1024 * 1024 }}
+        imageUpload={imageUploadConfig}
       />
     </div>
   )

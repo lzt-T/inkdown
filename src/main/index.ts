@@ -1,18 +1,20 @@
 import { app, shell, BrowserWindow, dialog, ipcMain, net, protocol } from 'electron'
-import { join, resolve } from 'path'
+import { dirname, isAbsolute, join, resolve } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import {
   IPC_CHANNELS,
   type FileNode,
+  type ImageStorageSettings,
+  type ImportImageRequest,
   type MenuAction,
   type PersistedState,
   type WriteFileRequest
 } from '../shared/contracts'
-import { addFileRoot, addWorkspaceRoot, isAuthorized } from './security'
+import { addFileRoot, addWorkspaceRoot, isAuthorized, isInside, setImageRoot } from './security'
 import { installApplicationMenu } from './menu'
-import { loadState, addRecentWorkspace, addRecentFile, setTheme, updateState } from './state'
+import { loadState, addRecentWorkspace, addRecentFile, updateState } from './state'
 import {
   createFolder,
   createMarkdownFile,
@@ -70,6 +72,66 @@ async function recordRecentFile(filePath: string): Promise<void> {
   // Updated recent state is the event payload consumed by the renderer.
   const recent = await addRecentFile(filePath)
   sendToRenderer(IPC_CHANNELS.recentChanged, recent)
+}
+
+/** Validates and normalizes the document-relative image directory setting. */
+function normalizeRelativeImageDirectory(value: string): string {
+  // Forward slashes keep the persisted setting portable across desktop platforms.
+  const normalized = value.trim().replace(/\\/g, '/').replace(/\/+/g, '/')
+  // Path segments prevent configured images from escaping the document directory.
+  const segments = normalized.split('/').filter((segment) => segment && segment !== '.')
+  if (
+    !normalized ||
+    isAbsolute(normalized) ||
+    /^[a-zA-Z]:\//.test(normalized) ||
+    normalized.startsWith('/') ||
+    normalized.split('/').includes('..')
+  ) {
+    throw new Error('请输入文档目录内的相对路径')
+  }
+  return segments.length === 0 ? '.' : segments.join('/')
+}
+
+/** Validates image storage settings before they are persisted. */
+function normalizeImageStorageSettings(settings: ImageStorageSettings): ImageStorageSettings {
+  // Global directory is normalized only when the user has selected one.
+  const globalDirectory = settings.globalDirectory ? resolve(settings.globalDirectory) : null
+  if (settings.mode !== 'relative' && settings.mode !== 'global') {
+    throw new Error('未知的图片保存模式')
+  }
+  if (settings.mode === 'global' && !globalDirectory) {
+    throw new Error('请先选择全局图片目录')
+  }
+  return {
+    mode: settings.mode,
+    relativeDirectory: normalizeRelativeImageDirectory(settings.relativeDirectory),
+    globalDirectory
+  }
+}
+
+/** Resolves an authorized image directory from persisted settings and the active document. */
+async function resolveImageTarget(request: ImportImageRequest): Promise<{
+  targetDir: string
+  documentDir: string
+}> {
+  // Document authorization prevents arbitrary renderer paths from becoming write roots.
+  const documentPath = resolve(request.documentPath)
+  if (!isAuthorized(documentPath)) throw new Error('文档不在授权范围内')
+
+  // Current persisted settings are the source of truth for every import.
+  const settings = (await loadState()).imageStorage
+  // Document directory anchors relative image locations and Markdown links.
+  const documentDir = dirname(documentPath)
+  if (settings.mode === 'global') {
+    if (!settings.globalDirectory) throw new Error('请先选择全局图片目录')
+    setImageRoot(settings.globalDirectory)
+    return { targetDir: settings.globalDirectory, documentDir }
+  }
+
+  // Normalized relative directory must remain inside the document directory.
+  const targetDir = resolve(documentDir, normalizeRelativeImageDirectory(settings.relativeDirectory))
+  if (!isInside(documentDir, targetDir)) throw new Error('图片目录不能超出文档目录')
+  return { targetDir, documentDir }
 }
 
 function registerProtocolHandler(): void {
@@ -215,10 +277,21 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.imageImport,
-    async (_event, payload: { name: string; data: Uint8Array; targetDir: string }) => {
-      return importImage(payload)
+    async (_event, request: ImportImageRequest) => {
+      // Main process derives the destination from trusted persisted settings.
+      const target = await resolveImageTarget(request)
+      return importImage({ name: request.name, data: request.data, ...target })
     }
   )
+
+  ipcMain.handle(IPC_CHANNELS.imageSelectDirectory, async () => {
+    // Native directory picker is the only UI used to choose a global image location.
+    const result = await dialog.showOpenDialog(getWindow(), {
+      title: '选择图片保存目录',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    return result.canceled || result.filePaths.length === 0 ? null : resolve(result.filePaths[0])
+  })
 
   ipcMain.handle(IPC_CHANNELS.windowMinimize, () => getWindow().minimize())
   ipcMain.handle(IPC_CHANNELS.windowToggleMaximize, () => {
@@ -231,9 +304,14 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.settingsGet, async () => loadState())
   ipcMain.handle(IPC_CHANNELS.settingsSet, async (_event, patch: Partial<PersistedState>) => {
-    if (patch.theme) await setTheme(patch.theme)
-    else await updateState(patch)
-    return loadState()
+    // Image settings receive path validation before sharing the generic persistence flow.
+    const normalizedPatch = patch.imageStorage
+      ? { ...patch, imageStorage: normalizeImageStorageSettings(patch.imageStorage) }
+      : patch
+    // Updated state supplies the protocol authorization used immediately after saving.
+    const state = await updateState(normalizedPatch)
+    setImageRoot(state.imageStorage.globalDirectory)
+    return state
   })
 
   ipcMain.on(IPC_CHANNELS.dirtyCountChanged, (_event, count: number) => {
@@ -248,7 +326,9 @@ function saveWindowBounds(): void {
 }
 
 async function createWindow(): Promise<void> {
+  // Persisted global image root must be authorized before renderer content loads.
   const state = await loadState()
+  setImageRoot(state.imageStorage.globalDirectory)
   const isMac = process.platform === 'darwin'
   const windowOptions = state.windowBounds ?? { width: 1200, height: 800 }
 

@@ -36,7 +36,9 @@ const api = {
     reveal: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.fileReveal, path)
   },
   image: {
-    import: (request: ImportImageRequest) => ipcRenderer.invoke(IPC_CHANNELS.imageImport, request)
+    import: (request: ImportImageRequest) => ipcRenderer.invoke(IPC_CHANNELS.imageImport, request),
+    /** Opens the native picker used for global image storage. */
+    selectDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.imageSelectDirectory) as Promise<string | null>
   },
   window: {
     minimize: () => ipcRenderer.invoke(IPC_CHANNELS.windowMinimize),
@@ -58,7 +60,8 @@ const api = {
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet) as Promise<PersistedState>,
-    set: (patch: Partial<PersistedState>) => ipcRenderer.invoke(IPC_CHANNELS.settingsSet, patch),
+    set: (patch: Partial<PersistedState>) =>
+      ipcRenderer.invoke(IPC_CHANNELS.settingsSet, patch) as Promise<PersistedState>,
     /** Subscribes to recent-state changes broadcast by the main process. */
     onRecentChanged: (callback: (recent: RecentState) => void) => {
       /** Forwards persisted recent-state updates into the renderer callback. */

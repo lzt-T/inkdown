@@ -1,6 +1,8 @@
 import { resolve, sep } from 'path'
 
 const roots = new Set<string>()
+// Image root remains authorized when the active workspace changes.
+let imageRoot: string | null = null
 
 function normalize(target: string): string {
   return resolve(target)
@@ -27,11 +29,19 @@ export function clearFileRoots(): void {
   if (workspaceRoot) roots.add(workspaceRoot)
 }
 
+/** Replaces the separately persisted global image directory authorization. */
+export function setImageRoot(root: string | null): void {
+  imageRoot = root ? normalize(root) : null
+}
+
 export function isAuthorized(target: string): boolean {
   const resolved = normalize(target)
-  return [...roots].some((root) => isInside(root, resolved))
+  return (
+    (imageRoot !== null && isInside(imageRoot, resolved)) ||
+    [...roots].some((root) => isInside(root, resolved))
+  )
 }
 
 export function authorizedRoots(): string[] {
-  return [...roots]
+  return imageRoot ? [...roots, imageRoot] : [...roots]
 }

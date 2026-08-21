@@ -1,12 +1,25 @@
 import { app } from 'electron'
 import { promises as fs } from 'fs'
 import { join } from 'path'
-import type { PersistedState, RecentState, ThemeMode } from '../shared/contracts'
+import type {
+  ImageStorageSettings,
+  PersistedState,
+  RecentState,
+  ThemeMode
+} from '../shared/contracts'
 
 const defaultRecent: RecentState = { workspaces: [], files: [], lastWorkspace: null }
+// Default image storage preserves the existing document-relative behavior.
+const defaultImageStorage: ImageStorageSettings = {
+  mode: 'relative',
+  relativeDirectory: 'assets',
+  globalDirectory: null
+}
+// Default persisted state is merged with older state files during loading.
 const defaultState: PersistedState = {
   recent: defaultRecent,
   theme: 'light',
+  imageStorage: defaultImageStorage,
   windowBounds: null
 }
 
@@ -21,7 +34,8 @@ export async function loadState(): Promise<PersistedState> {
     return {
       ...defaultState,
       ...parsed,
-      recent: { ...defaultRecent, ...(parsed.recent ?? {}) }
+      recent: { ...defaultRecent, ...(parsed.recent ?? {}) },
+      imageStorage: { ...defaultImageStorage, ...(parsed.imageStorage ?? {}) }
     }
   } catch {
     return structuredClone(defaultState)
@@ -33,7 +47,8 @@ export async function updateState(patch: Partial<PersistedState>): Promise<Persi
   const next: PersistedState = {
     ...current,
     ...patch,
-    recent: { ...current.recent, ...(patch.recent ?? {}) }
+    recent: { ...current.recent, ...(patch.recent ?? {}) },
+    imageStorage: { ...current.imageStorage, ...(patch.imageStorage ?? {}) }
   }
   await fs.mkdir(app.getPath('userData'), { recursive: true })
   await fs.writeFile(statePath(), JSON.stringify(next, null, 2), 'utf8')
