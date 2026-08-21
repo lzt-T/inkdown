@@ -21,7 +21,7 @@ import {
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
 import { Input } from '@/components/ui/input'
-import { dirname } from '@/lib/markdown-paths'
+import { basename, dirname } from '@/lib/markdown-paths'
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
 
@@ -43,13 +43,19 @@ export function FileTree(): React.JSX.Element {
 
   if (!workspaceRoot) return <div className="p-4 text-sm text-muted-foreground">未打开文件夹</div>
 
+  // Workspace name keeps the panel label concise while the title preserves the full path.
+  const workspaceName = basename(workspaceRoot) || workspaceRoot
   // Root nodes populate the first visible tree level.
   const rootNodes = treeNodes[workspaceRoot] ?? []
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-8 shrink-0 items-center truncate border-b px-3 text-[11px] font-semibold text-muted-foreground">
-        {workspaceRoot}
+      <div
+        className="flex h-9 shrink-0 items-center gap-2 border-b px-3 text-xs font-semibold text-panel-foreground"
+        title={workspaceRoot}
+      >
+        <FolderOpen className="size-3.5 shrink-0 text-primary" />
+        <span className="truncate">{workspaceName}</span>
       </div>
       <div className="flex-1 overflow-auto py-1.5">
         {rootNodes.length === 0 ? (
@@ -131,8 +137,8 @@ function TreeNode({
         <ContextMenuTrigger asChild>
           <button
             className={cn(
-              'group flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-panel-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
-              active && 'bg-selected font-medium text-foreground'
+              'group relative flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-panel-foreground outline-none transition-colors before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-transparent hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+              active && 'bg-selected/70 font-medium text-foreground before:bg-primary'
             )}
             style={{ paddingLeft: 10 + depth * 14 }}
             onClick={handleOpen}
@@ -202,7 +208,12 @@ function TreeNode({
       </ContextMenu>
 
       {isExpanded && (
-        <div>
+        <div className="relative">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 w-px bg-border/80"
+            style={{ left: 17 + depth * 14 }}
+          />
           {children.map((child) => (
             <TreeNode
               key={child.path}
