@@ -28,7 +28,6 @@ interface TitlebarProps {
 interface TitlebarActionProps {
   label: string
   children: ReactNode
-  className?: string
   disabled?: boolean
   isActive?: boolean
   onClick: () => void
@@ -38,7 +37,6 @@ interface TitlebarActionProps {
 function TitlebarAction({
   label,
   children,
-  className,
   disabled,
   isActive,
   onClick
@@ -56,8 +54,7 @@ function TitlebarAction({
             disabled={disabled}
             className={cn(
               'h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:translate-y-px active:bg-selected',
-              isActive && 'bg-selected text-primary',
-              className
+              isActive && 'bg-selected text-primary'
             )}
             onClick={onClick}
           >
@@ -191,11 +188,7 @@ export function Titlebar({
             >
               <Square className={cn(maximized && 'rotate-180')} />
             </TitlebarAction>
-            <TitlebarAction
-              label="关闭"
-              className="hover:bg-destructive hover:text-white"
-              onClick={() => void window.api.window.close()}
-            >
+            <TitlebarAction label="关闭" onClick={() => void window.api.window.close()}>
               <X />
             </TitlebarAction>
           </>
