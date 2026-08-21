@@ -1,6 +1,6 @@
 {
   "name": "inkdown",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Typora-like local Markdown editor built with Electron, React, Milkdown and Tailwind.",
   "main": "./out/main/index.js",
   "author": "Inkdown",
