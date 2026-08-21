@@ -36,7 +36,7 @@ function getRecentPath(path: string): RecentPath {
 function RecentGroup({ title, items, icon: Icon, onOpen }: RecentGroupProps): React.JSX.Element {
   return (
     <section>
-      <h3 className="mb-2 px-2 text-xs font-medium text-muted-foreground">{title}</h3>
+      <h3 className="mb-2 text-[11px] font-semibold text-muted-foreground">{title}</h3>
       <div className="space-y-1">
         {items.slice(0, RECENT_ITEM_LIMIT).map((path) => {
           // Derive a compact label while retaining the full path for hover disclosure.
@@ -48,9 +48,9 @@ function RecentGroup({ title, items, icon: Icon, onOpen }: RecentGroupProps): Re
               type="button"
               title={path}
               onClick={() => onOpen(path)}
-              className="group flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/50 active:bg-accent"
+              className="group flex w-full items-center gap-3 rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/60 active:translate-y-px active:bg-selected"
             >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-background group-hover:text-primary">
+              <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover:text-primary">
                 <Icon className="size-4" />
               </span>
               <span className="min-w-0 flex-1">
@@ -89,32 +89,24 @@ export function Welcome(): React.JSX.Element {
   const hasRecentItems = recent.files.length > 0 || recent.workspaces.length > 0
 
   return (
-    <div
-      className="@container relative flex h-full overflow-auto bg-background"
-      style={{
-        backgroundImage:
-          'radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 34%), radial-gradient(circle at 82% 76%, color-mix(in srgb, var(--primary) 5%, transparent), transparent 30%)'
-      }}
-    >
-      <div className="relative mx-auto grid w-full max-w-5xl content-center gap-10 px-6 py-12 @min-[48rem]:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] @min-[48rem]:items-center @min-[48rem]:px-10">
+    <div className="@container relative flex h-full overflow-auto bg-background">
+      <div className="relative mx-auto grid min-h-full w-full max-w-6xl content-start gap-12 px-8 py-12 @min-[52rem]:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)] @min-[52rem]:content-center @min-[52rem]:items-center @min-[52rem]:px-12">
         <section className="max-w-xl">
-          <div className="mb-7 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_12px_28px_-18px_color-mix(in_srgb,var(--primary)_70%,transparent)]">
-            <FileText className="size-5" />
-          </div>
+          <FileText className="mb-8 size-7 text-primary" />
 
-          <h1 className="text-4xl font-semibold tracking-[-0.03em] text-foreground">Inkdown</h1>
-          <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
+          <h1 className="text-5xl font-semibold tracking-[-0.03em] text-foreground">Inkdown</h1>
+          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
             一个本地优先的 Typora 风格 Markdown 编辑器。
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button size="sm" className="active:translate-y-px" onClick={newUntitled}>
+          <div className="mt-9 flex flex-wrap gap-2">
+            <Button size="sm" className="rounded-md active:translate-y-px" onClick={newUntitled}>
               <FilePlus /> 新建文件
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="active:translate-y-px"
+              className="rounded-md bg-card active:translate-y-px"
               onClick={() => void openFileDialog()}
             >
               <FileText /> 打开文件
@@ -122,7 +114,7 @@ export function Welcome(): React.JSX.Element {
             <Button
               variant="outline"
               size="sm"
-              className="active:translate-y-px"
+              className="rounded-md bg-card active:translate-y-px"
               onClick={() => void openWorkspace()}
             >
               <FolderOpen /> 打开文件夹
@@ -130,17 +122,17 @@ export function Welcome(): React.JSX.Element {
           </div>
         </section>
 
-        <aside className="rounded-xl border bg-card/85 p-3">
-          <div className="flex items-center justify-between px-2 pb-3 pt-1">
+        <aside className="border-t pt-7 @min-[52rem]:border-l @min-[52rem]:border-t-0 @min-[52rem]:pl-9 @min-[52rem]:pt-0">
+          <div className="flex items-start justify-between border-b pb-4">
             <div>
-              <h2 className="text-sm font-semibold text-card-foreground">最近使用</h2>
+              <h2 className="text-base font-semibold text-foreground">最近使用</h2>
               <p className="mt-1 text-xs text-muted-foreground">继续上一次的写作</p>
             </div>
-            <History className="size-4 text-muted-foreground" />
+            <History className="mt-0.5 size-4 text-primary" />
           </div>
 
           {hasRecentItems ? (
-            <div className="space-y-5 border-t pt-3">
+            <div className="space-y-6 pt-5">
               {recent.files.length > 0 && (
                 <RecentGroup
                   title="文件"
@@ -159,11 +151,9 @@ export function Welcome(): React.JSX.Element {
               )}
             </div>
           ) : (
-            <div className="flex min-h-44 flex-col items-center justify-center border-t px-6 text-center">
-              <span className="mb-3 flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                <History className="size-4" />
-              </span>
-              <p className="text-sm font-medium text-card-foreground">暂无最近内容</p>
+            <div className="flex min-h-44 flex-col items-start justify-center py-6 text-left">
+              <History className="mb-4 size-5 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">暂无最近内容</p>
               <p className="mt-1 max-w-52 text-xs leading-5 text-muted-foreground">
                 打开过的文件和文件夹会显示在这里。
               </p>

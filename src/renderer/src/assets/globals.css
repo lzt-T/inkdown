@@ -26,6 +26,9 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-panel: var(--panel);
+  --color-panel-foreground: var(--panel-foreground);
+  --color-selected: var(--selected);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -33,46 +36,52 @@
 }
 
 :root {
-  --radius: 8px;
-  --background: #f5f7f6;
-  --foreground: #1b2421;
+  --radius: 6px;
+  --background: #f6f8fc;
+  --foreground: #162336;
   --card: #ffffff;
-  --card-foreground: #1b2421;
+  --card-foreground: #162336;
   --popover: #ffffff;
-  --popover-foreground: #1b2421;
-  --primary: #0f766e;
-  --primary-foreground: #f2fffc;
-  --secondary: #dcefea;
-  --secondary-foreground: #10423c;
-  --muted: #e7ece9;
-  --muted-foreground: #64716c;
-  --accent: #dcefea;
-  --accent-foreground: #10423c;
-  --destructive: #b42318;
-  --border: #d9e0dd;
-  --input: #d9e0dd;
-  --ring: #0f766e;
+  --popover-foreground: #162336;
+  --primary: #3548d4;
+  --primary-foreground: #ffffff;
+  --secondary: #e9edfa;
+  --secondary-foreground: #26366f;
+  --muted: #edf1f7;
+  --muted-foreground: #5e7087;
+  --accent: #e7ebfb;
+  --accent-foreground: #253472;
+  --destructive: #b4232d;
+  --border: #d4dde9;
+  --input: #d4dde9;
+  --ring: #3548d4;
+  --panel: #f2f5fb;
+  --panel-foreground: #26364c;
+  --selected: #e4e9fb;
 }
 
 .dark {
-  --background: #0f1412;
-  --foreground: #e8f0ec;
-  --card: #161d1a;
-  --card-foreground: #e8f0ec;
-  --popover: #161d1a;
-  --popover-foreground: #e8f0ec;
-  --primary: #5eead4;
-  --primary-foreground: #062b28;
-  --secondary: #1d2d29;
-  --secondary-foreground: #d9f5ef;
-  --muted: #1b2421;
-  --muted-foreground: #93a39d;
-  --accent: #20332f;
-  --accent-foreground: #d9f5ef;
-  --destructive: #ff7b72;
-  --border: #2a3733;
-  --input: #2a3733;
-  --ring: #5eead4;
+  --background: #0c1220;
+  --foreground: #e8efff;
+  --card: #131d31;
+  --card-foreground: #e8efff;
+  --popover: #131d31;
+  --popover-foreground: #e8efff;
+  --primary: #8c9bff;
+  --primary-foreground: #111116;
+  --secondary: #1c2944;
+  --secondary-foreground: #dce4ff;
+  --muted: #17233a;
+  --muted-foreground: #93a7c3;
+  --accent: #1f2d4a;
+  --accent-foreground: #e3e9ff;
+  --destructive: #ff7b82;
+  --border: #2f4366;
+  --input: #2f4366;
+  --ring: #8c9bff;
+  --panel: #131d31;
+  --panel-foreground: #dce4f5;
+  --selected: #24345b;
 }
 
 * {
@@ -108,6 +117,10 @@ button {
   overflow: hidden;
 }
 
+.inkdown-editor-surface {
+  container: inkdown-editor / inline-size;
+}
+
 .inkdown-editor-surface > .zt-md > .zt-md-body {
   min-height: 0 !important;
   flex: 1 1 0%;
@@ -123,6 +136,10 @@ button {
 
 .inkdown-editor-surface .zt-md-editor .ProseMirror {
   min-height: 100%;
+  width: 100% !important;
+  max-width: 760px !important;
+  margin-inline: auto !important;
+  padding: 40px 40px 140px !important;
 }
 
 .inkdown-source-surface > .cm-theme {
@@ -137,9 +154,22 @@ button {
   font-size: 15px;
 }
 
+.inkdown-source-surface .cm-content {
+  width: 100%;
+  max-width: 760px !important;
+  margin-inline: auto !important;
+  padding: 40px 40px 140px !important;
+}
+
 .cm-editor .cm-scroller {
   font-family: var(--font-mono);
   line-height: 1.75;
+}
+
+@container inkdown-editor (max-width: 620px) {
+  .inkdown-editor-surface .zt-md-editor .ProseMirror {
+    padding-inline: 24px !important;
+  }
 }
 
 .app-drag {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   Code2,
   FilePlus,
@@ -13,15 +13,63 @@ import {
   Square,
   X
 } from 'lucide-react'
-import { useEditorStore } from '../store/editor-store'
-import { Button } from './ui/button'
-import { Separator } from './ui/separator'
-import { cn } from '../lib/utils'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+import { useEditorStore } from '@/store/editor-store'
 
 interface TitlebarProps {
   isSettingsOpen: boolean
   onOpenSettings: () => void
   onReturnToEditor: () => void
+}
+
+interface TitlebarActionProps {
+  label: string
+  children: ReactNode
+  className?: string
+  disabled?: boolean
+  isActive?: boolean
+  onClick: () => void
+}
+
+/** Renders one labeled titlebar action with consistent interaction states. */
+function TitlebarAction({
+  label,
+  children,
+  className,
+  disabled,
+  isActive,
+  onClick
+}: TitlebarActionProps): React.JSX.Element {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="app-no-drag inline-flex">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            aria-pressed={isActive === undefined ? undefined : isActive}
+            disabled={disabled}
+            className={cn(
+              'h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:translate-y-px active:bg-selected',
+              isActive && 'bg-selected text-primary',
+              className
+            )}
+            onClick={onClick}
+          >
+            {children}
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={6}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
 }
 
 /** Renders the native window toolbar and primary editor actions. */
@@ -88,122 +136,68 @@ export function Titlebar({
   const isMac = navigator.userAgent.includes('Mac')
 
   return (
-    <header className="app-drag flex h-10 shrink-0 items-center border-b bg-card/80 px-2 text-muted-foreground">
-      <div className={cn('flex min-w-0 items-center gap-1', isMac && 'pl-16')}>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="app-no-drag h-7 w-7"
-          onClick={toggleSidebar}
-          title="切换文件树"
-        >
+    <header className="app-drag flex h-10 shrink-0 items-center border-b bg-panel px-2 text-muted-foreground">
+      <div className={cn('flex min-w-0 items-center gap-0.5', isMac && 'pl-16')}>
+        <TitlebarAction label="切换文件树" isActive={sidebarOpen} onClick={toggleSidebar}>
           {sidebarOpen ? <PanelLeftOpen /> : <PanelLeftClose />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="app-no-drag h-7 w-7"
-          onClick={handleNewFile}
-          title="新建文件"
-        >
+        </TitlebarAction>
+        <Separator orientation="vertical" className="mx-1.5 h-4" />
+        <TitlebarAction label="新建文件" onClick={handleNewFile}>
           <FilePlus />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="app-no-drag h-7 w-7"
-          onClick={handleOpenFile}
-          title="打开文件"
-        >
-          <FolderOpen />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="app-no-drag h-7 w-7"
-          onClick={handleOpenWorkspace}
-          title="打开文件夹"
-        >
+        </TitlebarAction>
+        <TitlebarAction label="打开文件" onClick={handleOpenFile}>
           <FileText />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="app-no-drag h-7 w-7"
-          onClick={() => void saveActive()}
-          disabled={!activeDoc}
-          title="保存"
-        >
+        </TitlebarAction>
+        <TitlebarAction label="打开文件夹" onClick={handleOpenWorkspace}>
+          <FolderOpen />
+        </TitlebarAction>
+        <TitlebarAction label="保存" disabled={!activeDoc} onClick={() => void saveActive()}>
           <Save />
-        </Button>
+        </TitlebarAction>
       </div>
 
-      <div className="mx-3 flex min-w-0 flex-1 items-center justify-center gap-2">
-        <span className="truncate text-sm text-foreground">
+      <div className="mx-4 flex min-w-0 flex-1 items-center justify-center gap-2">
+        <span className="truncate text-xs font-medium text-foreground">
           {isSettingsOpen ? '设置' : (activeDoc?.name ?? 'Inkdown')}
         </span>
-        {!isSettingsOpen && dirty && <span className="text-xs text-muted-foreground">未保存</span>}
+        {!isSettingsOpen && dirty && <span className="text-[11px] text-primary">未保存</span>}
       </div>
 
-      <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="app-no-drag h-7 w-7"
-          onClick={toggleOutline}
-          title="切换大纲"
-        >
-          <ListTree className={cn(outlineOpen && 'text-primary')} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="app-no-drag h-7 w-7"
-          onClick={toggleMode}
-          title="切换源码模式"
-        >
-          <Code2 className={cn(mode === 'source' && 'text-primary')} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="app-no-drag h-7 w-7"
+      <div className="flex items-center gap-0.5">
+        <TitlebarAction label="切换大纲" isActive={outlineOpen} onClick={toggleOutline}>
+          <ListTree />
+        </TitlebarAction>
+        <TitlebarAction label="切换源码模式" isActive={mode === 'source'} onClick={toggleMode}>
+          <Code2 />
+        </TitlebarAction>
+        <Separator orientation="vertical" className="mx-1.5 h-4" />
+        <TitlebarAction
+          label={isSettingsOpen ? '返回编辑器' : '打开设置'}
+          isActive={isSettingsOpen}
           onClick={isSettingsOpen ? onReturnToEditor : onOpenSettings}
-          title={isSettingsOpen ? '返回编辑器' : '打开设置'}
         >
-          <Settings className={cn(isSettingsOpen && 'text-primary')} />
-        </Button>
+          <Settings />
+        </TitlebarAction>
 
         {!isMac && (
           <>
             <Separator orientation="vertical" className="mx-1 h-4" />
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="app-no-drag h-7 w-7"
-              onClick={() => void window.api.window.minimize()}
-              title="最小化"
-            >
+            <TitlebarAction label="最小化" onClick={() => void window.api.window.minimize()}>
               <Minus />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="app-no-drag h-7 w-7"
+            </TitlebarAction>
+            <TitlebarAction
+              label={maximized ? '还原' : '最大化'}
               onClick={() => void window.api.window.toggleMaximize()}
-              title={maximized ? '还原' : '最大化'}
             >
               <Square className={cn(maximized && 'rotate-180')} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="app-no-drag h-7 w-7 hover:bg-destructive hover:text-destructive-foreground"
+            </TitlebarAction>
+            <TitlebarAction
+              label="关闭"
+              className="hover:bg-destructive hover:text-white"
               onClick={() => void window.api.window.close()}
-              title="关闭"
             >
               <X />
-            </Button>
+            </TitlebarAction>
           </>
         )}
       </div>

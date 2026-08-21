@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { Toaster as SonnerToaster } from 'sonner'
-import { useEditorStore } from './store/editor-store'
-import { Titlebar } from './components/Titlebar'
-import { FileTree } from './components/FileTree'
-import { EditorPane } from './components/EditorPane'
-import { OutlinePanel } from './components/OutlinePanel'
-import { StatusBar } from './components/StatusBar'
-import { SettingsPage } from './components/SettingsPage'
-import { parseOutline } from './lib/outline'
-import { cn } from './lib/utils'
+import { EditorPane } from '@/components/EditorPane'
+import { FileTree } from '@/components/FileTree'
+import { OutlinePanel } from '@/components/OutlinePanel'
+import { SettingsPage } from '@/components/SettingsPage'
+import { StatusBar } from '@/components/StatusBar'
+import { Titlebar } from '@/components/Titlebar'
+import { cn } from '@/lib/utils'
+import { parseOutline } from '@/lib/outline'
+import { useEditorStore } from '@/store/editor-store'
 
 type AppSurface = 'editor' | 'settings'
 
@@ -162,19 +162,19 @@ function App(): React.JSX.Element {
           <Group orientation="horizontal" id="inkdown.panels" className="flex min-w-0 flex-1">
             {sidebarOpen && (
               <>
-                <Panel defaultSize="18" minSize="12" maxSize="32" className="border-r bg-card/50">
+                <Panel defaultSize={240} minSize={200} maxSize={360} className="bg-panel">
                   <FileTree />
                 </Panel>
-                <Separator className="w-px bg-border transition-colors hover:bg-primary/50" />
+                <Separator className="w-px bg-border transition-colors hover:bg-primary/60" />
               </>
             )}
-            <Panel minSize="35" className="min-w-0">
+            <Panel minSize={360} className="min-w-0">
               <EditorPane />
             </Panel>
             {outlineOpen && (
               <>
-                <Separator className="w-px bg-border transition-colors hover:bg-primary/50" />
-                <Panel defaultSize="16" minSize="12" maxSize="28" className="border-l bg-card/50">
+                <Separator className="w-px bg-border transition-colors hover:bg-primary/60" />
+                <Panel defaultSize={260} minSize={220} maxSize={380} className="bg-panel">
                   <OutlinePanel items={outlineItems} />
                 </Panel>
               </>

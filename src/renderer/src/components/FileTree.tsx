@@ -13,33 +13,45 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { FileNode } from '../../../shared/contracts'
-import { useEditorStore } from '../store/editor-store'
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu'
-import { Input } from './ui/input'
-import { cn } from '../lib/utils'
-import { dirname } from '../lib/markdown-paths'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@/components/ui/context-menu'
+import { Input } from '@/components/ui/input'
+import { dirname } from '@/lib/markdown-paths'
+import { cn } from '@/lib/utils'
+import { useEditorStore } from '@/store/editor-store'
 
 type EditingState =
   | { kind: 'rename'; path: string; value: string; parent: string }
   | { kind: 'create-file'; parent: string; value: string }
   | { kind: 'create-folder'; parent: string; value: string }
 
+/** Renders the active workspace as an editable Markdown file tree. */
 export function FileTree(): React.JSX.Element {
+  // Workspace root labels the panel and scopes root nodes.
   const workspaceRoot = useEditorStore((state) => state.workspaceRoot)
+  // Tree nodes provide directory children by absolute path.
   const treeNodes = useEditorStore((state) => state.treeNodes)
+  // Expanded directories control visible tree branches.
   const expandedDirs = useEditorStore((state) => state.expandedDirs)
+  // Root-level editing state renders new entries beside root nodes.
   const [editing, setEditing] = useState<EditingState | null>(null)
 
   if (!workspaceRoot) return <div className="p-4 text-sm text-muted-foreground">未打开文件夹</div>
 
+  // Root nodes populate the first visible tree level.
   const rootNodes = treeNodes[workspaceRoot] ?? []
 
   return (
     <div className="flex h-full flex-col">
-      <div className="truncate border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+      <div className="flex h-8 shrink-0 items-center truncate border-b px-3 text-[11px] font-semibold text-muted-foreground">
         {workspaceRoot}
       </div>
-      <div className="flex-1 overflow-auto py-1">
+      <div className="flex-1 overflow-auto py-1.5">
         {rootNodes.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-muted-foreground">暂无 Markdown 文件</div>
         ) : (
@@ -69,6 +81,7 @@ export function FileTree(): React.JSX.Element {
   )
 }
 
+/** Renders one recursive file or directory row. */
 function TreeNode({
   node,
   depth,
@@ -82,22 +95,32 @@ function TreeNode({
   treeNodes: Record<string, FileNode[]>
   onStartEdit: (editing: EditingState) => void
 }): React.JSX.Element {
+  // File action opens the selected Markdown document.
   const openPath = useEditorStore((state) => state.openPath)
+  // Expand action loads and reveals a directory branch.
   const expandDirectory = useEditorStore((state) => state.expandDirectory)
+  // Collapse action hides a directory branch.
   const collapseDirectory = useEditorStore((state) => state.collapseDirectory)
+  // Active key identifies the selected file row.
   const activeKey = useEditorStore((state) => state.activeKey)
+  // Branch-local editing state renders entries inside this directory.
   const [editing, setEditing] = useState<EditingState | null>(null)
 
+  // Active state highlights the currently edited file.
   const active = node.type === 'file' && node.path === activeKey
+  // Directory children render below expanded branches.
   const children = node.type === 'directory' ? treeNodes[node.path] ?? [] : []
+  // Expanded state selects the directory affordance and children.
   const isExpanded = node.type === 'directory' && expandedDirs.includes(node.path)
 
+  /** Opens a file or toggles the current directory. */
   const handleOpen = (): void => {
     if (node.type === 'file') void openPath(node.path)
     else if (isExpanded) collapseDirectory(node.path)
     else void expandDirectory(node.path)
   }
 
+  /** Refreshes one directory after a filesystem mutation. */
   const refreshDirectory = async (directory: string): Promise<void> => {
     await useEditorStore.getState().refreshDirectory(directory)
   }
@@ -108,8 +131,8 @@ function TreeNode({
         <ContextMenuTrigger asChild>
           <button
             className={cn(
-              'group flex w-full items-center gap-1.5 px-2 py-1 text-left text-sm hover:bg-accent hover:text-accent-foreground',
-              active && 'bg-accent text-accent-foreground'
+              'group flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-panel-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+              active && 'bg-selected font-medium text-foreground'
             )}
             style={{ paddingLeft: 10 + depth * 14 }}
             onClick={handleOpen}
@@ -122,9 +145,15 @@ function TreeNode({
               <span className="size-3.5 shrink-0" />
             )}
             {node.type === 'directory' ? (
-              isExpanded ? <FolderOpen className="size-4 shrink-0 text-primary" /> : <Folder className="size-4 shrink-0" />
+              isExpanded ? (
+                <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <Folder className="size-4 shrink-0 text-muted-foreground" />
+              )
             ) : (
-              <FileText className="size-4 shrink-0" />
+              <FileText
+                className={cn('size-4 shrink-0 text-muted-foreground', active && 'text-primary')}
+              />
             )}
             <span className="truncate">{node.name}</span>
           </button>
@@ -200,6 +229,7 @@ function TreeNode({
   )
 }
 
+/** Renders the inline input used for creating and renaming tree entries. */
 function EditingRow({
   value,
   onChange,
@@ -225,12 +255,13 @@ function EditingRow({
           if (event.key === 'Enter') onCommit(value.trim())
           if (event.key === 'Escape') onCancel()
         }}
-        className="h-7 text-sm"
+        className="h-7 rounded-md bg-card text-sm"
       />
     </div>
   )
 }
 
+/** Commits a file-tree create or rename operation. */
 async function commitEditing(editing: EditingState, value: string): Promise<void> {
   if (!value) return
   try {

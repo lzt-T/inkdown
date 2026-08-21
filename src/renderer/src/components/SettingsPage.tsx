@@ -40,13 +40,19 @@ export function SettingsPage({ onClose }: SettingsPageProps): React.JSX.Element 
 
   return (
     <main className="flex min-h-0 flex-1 overflow-auto bg-background">
-      <div className="@container mx-auto w-full max-w-6xl px-6 py-8">
-        <div className="mb-8 flex items-center gap-3">
-          <Button variant="ghost" size="icon-sm" onClick={onClose} title="返回编辑器">
+      <div className="@container mx-auto w-full max-w-5xl px-8 py-10">
+        <div className="mb-10 flex items-center gap-3 border-b pb-6">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-md"
+            onClick={onClose}
+            title="返回编辑器"
+          >
             <ArrowLeft />
           </Button>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">设置</h1>
+            <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">设置</h1>
             <p className="mt-1 text-xs text-muted-foreground">调整 Inkdown 的使用体验</p>
           </div>
         </div>
@@ -56,14 +62,14 @@ export function SettingsPage({ onClose }: SettingsPageProps): React.JSX.Element 
             <button
               type="button"
               aria-current="page"
-              className="flex w-full items-center gap-2.5 rounded-lg bg-accent px-3 py-2 text-left text-sm font-medium text-accent-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="flex w-full items-center gap-2.5 rounded-md bg-selected px-3 py-2 text-left text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             >
               <Palette className="size-4" />
               外观
             </button>
           </nav>
 
-          <section className="min-w-0 border-t pt-6 @min-[42rem]:border-l @min-[42rem]:border-t-0 @min-[42rem]:pl-8 @min-[42rem]:pt-0">
+          <section className="min-w-0 border-t pt-6 @min-[42rem]:border-l @min-[42rem]:border-t-0 @min-[42rem]:pl-9 @min-[42rem]:pt-0">
             <div className="max-w-3xl">
               <h2 className="text-base font-semibold text-foreground">外观</h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -86,7 +92,7 @@ export function SettingsPage({ onClose }: SettingsPageProps): React.JSX.Element 
                         aria-pressed={isSelected}
                         onClick={() => setTheme(option.value)}
                         className={cn(
-                          'group rounded-xl border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px',
+                          'group rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 active:translate-y-px',
                           isSelected
                             ? 'border-primary bg-primary/5'
                             : 'bg-card hover:border-primary/40 hover:bg-accent/30'
@@ -94,44 +100,44 @@ export function SettingsPage({ onClose }: SettingsPageProps): React.JSX.Element 
                       >
                         <span
                           className={cn(
-                            'relative block h-28 overflow-hidden rounded-lg border',
+                            'relative block h-28 overflow-hidden rounded-md border',
                             option.value === 'light'
-                              ? 'border-[#d9e0dd] bg-[#f5f7f6]'
-                              : 'border-[#2a3733] bg-[#0f1412]'
+                              ? 'border-[#d4dde9] bg-[#f6f8fc]'
+                              : 'border-[#2f4366] bg-[#0c1220]'
                           )}
                         >
                           <span
                             className={cn(
                               'absolute inset-x-0 top-0 h-5 border-b',
                               option.value === 'light'
-                                ? 'border-[#d9e0dd] bg-white'
-                                : 'border-[#2a3733] bg-[#161d1a]'
+                                ? 'border-[#d4dde9] bg-white'
+                                : 'border-[#2f4366] bg-[#131d31]'
                             )}
                           />
                           <span
                             className={cn(
                               'absolute bottom-0 left-0 top-5 w-12 border-r',
                               option.value === 'light'
-                                ? 'border-[#d9e0dd] bg-[#eef2f0]'
-                                : 'border-[#2a3733] bg-[#161d1a]'
+                                ? 'border-[#d4dde9] bg-[#f2f5fb]'
+                                : 'border-[#2f4366] bg-[#131d31]'
                             )}
                           />
                           <span
                             className={cn(
                               'absolute left-[4.5rem] top-10 h-2 w-20 rounded-full',
-                              option.value === 'light' ? 'bg-[#1b2421]' : 'bg-[#e8f0ec]'
+                              option.value === 'light' ? 'bg-[#162336]' : 'bg-[#e8efff]'
                             )}
                           />
                           <span
                             className={cn(
                               'absolute left-[4.5rem] top-16 h-1.5 w-28 rounded-full',
-                              option.value === 'light' ? 'bg-[#b8c3bf]' : 'bg-[#53615c]'
+                              option.value === 'light' ? 'bg-[#5e7087]' : 'bg-[#93a7c3]'
                             )}
                           />
                         </span>
 
                         <span className="mt-3 flex items-start gap-3 px-1 pb-1">
-                          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:text-primary">
+                          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-primary">
                             <Icon className="size-4" />
                           </span>
                           <span className="min-w-0 flex-1">
