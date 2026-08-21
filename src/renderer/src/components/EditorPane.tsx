@@ -36,6 +36,7 @@ export const EditorPane = memo(function EditorPane(): React.JSX.Element {
           <Welcome />
         ) : mode === 'wysiwyg' ? (
           <MilkdownSurface
+            key={activeKey}
             value={viewMarkdown}
             theme={theme}
             documentPath={diskPath}

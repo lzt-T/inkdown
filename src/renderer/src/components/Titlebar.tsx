@@ -6,12 +6,11 @@ import {
   FolderOpen,
   ListTree,
   Minus,
-  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Save,
+  Settings,
   Square,
-  Sun,
   X
 } from 'lucide-react'
 import { useEditorStore } from '../store/editor-store'
@@ -19,32 +18,65 @@ import { Button } from './ui/button'
 import { Separator } from './ui/separator'
 import { cn } from '../lib/utils'
 
-export function Titlebar(): React.JSX.Element {
+interface TitlebarProps {
+  isSettingsOpen: boolean
+  onOpenSettings: () => void
+  onReturnToEditor: () => void
+}
+
+/** Renders the native window toolbar and primary editor actions. */
+export function Titlebar({
+  isSettingsOpen,
+  onOpenSettings,
+  onReturnToEditor
+}: TitlebarProps): React.JSX.Element {
+  // Editor state and actions power the toolbar controls.
   const {
     activeKey,
     openDocs,
     sidebarOpen,
     outlineOpen,
-    theme,
     mode,
     toggleSidebar,
     toggleOutline,
-    toggleTheme,
     toggleMode,
     newUntitled,
     openWorkspace,
     openFileDialog,
     saveActive
   } = useEditorStore()
+  // Maximized state selects the correct native window affordance.
   const [maximized, setMaximized] = useState(false)
+  // Active document provides the toolbar title and save state.
   const activeDoc = activeKey ? openDocs[activeKey] : null
+  // Dirty state adds an unsaved indicator beside the document title.
   const dirty = activeDoc ? activeDoc.rawMarkdown !== activeDoc.savedRawMarkdown : false
 
+  /** Creates a document and restores the editor workspace. */
+  const handleNewFile = (): void => {
+    onReturnToEditor()
+    newUntitled()
+  }
+
+  /** Opens the file picker and restores the editor workspace. */
+  const handleOpenFile = (): void => {
+    onReturnToEditor()
+    void openFileDialog()
+  }
+
+  /** Opens the workspace picker and restores the editor workspace. */
+  const handleOpenWorkspace = (): void => {
+    onReturnToEditor()
+    void openWorkspace()
+  }
+
   useEffect(() => {
+    // Mounted guard prevents stale native window updates.
     let mounted = true
     void window.api.window.isMaximized().then((value) => {
       if (mounted) setMaximized(value)
     })
+    // Native subscription keeps the maximize affordance synchronized.
     const unsubscribe = window.api.window.onMaximizedChanged(setMaximized)
     return () => {
       mounted = false
@@ -52,6 +84,7 @@ export function Titlebar(): React.JSX.Element {
     }
   }, [])
 
+  // macOS reserves toolbar space for native traffic-light controls.
   const isMac = navigator.userAgent.includes('Mac')
 
   return (
@@ -70,7 +103,7 @@ export function Titlebar(): React.JSX.Element {
           variant="ghost"
           size="icon-sm"
           className="app-no-drag h-7 w-7"
-          onClick={newUntitled}
+          onClick={handleNewFile}
           title="新建文件"
         >
           <FilePlus />
@@ -79,7 +112,7 @@ export function Titlebar(): React.JSX.Element {
           variant="ghost"
           size="icon-sm"
           className="app-no-drag h-7 w-7"
-          onClick={() => void openFileDialog()}
+          onClick={handleOpenFile}
           title="打开文件"
         >
           <FolderOpen />
@@ -88,7 +121,7 @@ export function Titlebar(): React.JSX.Element {
           variant="ghost"
           size="icon-sm"
           className="app-no-drag h-7 w-7"
-          onClick={() => void openWorkspace()}
+          onClick={handleOpenWorkspace}
           title="打开文件夹"
         >
           <FileText />
@@ -106,8 +139,10 @@ export function Titlebar(): React.JSX.Element {
       </div>
 
       <div className="mx-3 flex min-w-0 flex-1 items-center justify-center gap-2">
-        <span className="truncate text-sm text-foreground">{activeDoc?.name ?? 'Inkdown'}</span>
-        {dirty && <span className="text-xs text-muted-foreground">未保存</span>}
+        <span className="truncate text-sm text-foreground">
+          {isSettingsOpen ? '设置' : (activeDoc?.name ?? 'Inkdown')}
+        </span>
+        {!isSettingsOpen && dirty && <span className="text-xs text-muted-foreground">未保存</span>}
       </div>
 
       <div className="flex items-center gap-1">
@@ -133,10 +168,10 @@ export function Titlebar(): React.JSX.Element {
           variant="ghost"
           size="icon-sm"
           className="app-no-drag h-7 w-7"
-          onClick={toggleTheme}
-          title="切换主题"
+          onClick={isSettingsOpen ? onReturnToEditor : onOpenSettings}
+          title={isSettingsOpen ? '返回编辑器' : '打开设置'}
         >
-          {theme === 'light' ? <Moon /> : <Sun />}
+          <Settings className={cn(isSettingsOpen && 'text-primary')} />
         </Button>
 
         {!isMac && (
