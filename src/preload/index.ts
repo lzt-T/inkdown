@@ -5,6 +5,7 @@ import {
   type ImportImageRequest,
   type MenuAction,
   type PersistedState,
+  type RecentState,
   type WriteFileRequest
 } from '../shared/contracts'
 
@@ -57,7 +58,17 @@ const api = {
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet) as Promise<PersistedState>,
-    set: (patch: Partial<PersistedState>) => ipcRenderer.invoke(IPC_CHANNELS.settingsSet, patch)
+    set: (patch: Partial<PersistedState>) => ipcRenderer.invoke(IPC_CHANNELS.settingsSet, patch),
+    /** Subscribes to recent-state changes broadcast by the main process. */
+    onRecentChanged: (callback: (recent: RecentState) => void) => {
+      /** Forwards persisted recent-state updates into the renderer callback. */
+      const listener = (_event: Electron.IpcRendererEvent, recent: RecentState): void =>
+        callback(recent)
+      ipcRenderer.on(IPC_CHANNELS.recentChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.recentChanged, listener)
+      }
+    }
   },
   app: {
     setDirtyCount: (count: number) => ipcRenderer.send(IPC_CHANNELS.dirtyCountChanged, count)

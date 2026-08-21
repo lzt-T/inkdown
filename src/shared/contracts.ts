@@ -92,6 +92,7 @@ export const IPC_CHANNELS = {
   menuAction: 'menu:action',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
+  recentChanged: 'recent:changed',
   dirtyCountChanged: 'app:dirty-count-changed'
 } as const
 

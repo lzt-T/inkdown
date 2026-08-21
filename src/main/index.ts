@@ -58,6 +58,20 @@ function sendToRenderer(channel: string, ...args: unknown[]): void {
   }
 }
 
+/** Persists a recently opened workspace and synchronizes it with the renderer. */
+async function recordRecentWorkspace(workspace: string): Promise<void> {
+  // Updated recent state is the event payload consumed by the renderer.
+  const recent = await addRecentWorkspace(workspace)
+  sendToRenderer(IPC_CHANNELS.recentChanged, recent)
+}
+
+/** Persists a recently used file and synchronizes it with the renderer. */
+async function recordRecentFile(filePath: string): Promise<void> {
+  // Updated recent state is the event payload consumed by the renderer.
+  const recent = await addRecentFile(filePath)
+  sendToRenderer(IPC_CHANNELS.recentChanged, recent)
+}
+
 function registerProtocolHandler(): void {
   protocol.handle('inkdown-file', async (request) => {
     try {
@@ -83,18 +97,18 @@ function registerIpcHandlers(): void {
 
     const root = resolve(result.filePaths[0])
     addWorkspaceRoot(root)
-    await addRecentWorkspace(root)
-    startWorkspaceWatcher(root, getWindow())
     const nodes = await scanDir(root)
+    await recordRecentWorkspace(root)
+    startWorkspaceWatcher(root, getWindow())
     return { root, nodes } satisfies { root: string; nodes: FileNode[] }
   })
 
   ipcMain.handle(IPC_CHANNELS.workspaceOpenPath, async (_event, directory: string) => {
     const root = resolve(directory)
     addWorkspaceRoot(root)
-    await addRecentWorkspace(root)
-    startWorkspaceWatcher(root, getWindow())
     const nodes = await scanDir(root)
+    await recordRecentWorkspace(root)
+    startWorkspaceWatcher(root, getWindow())
     return { root, nodes } satisfies { root: string; nodes: FileNode[] }
   })
   ipcMain.handle(IPC_CHANNELS.workspaceScan, async (_event, directory: string) => {
@@ -113,15 +127,19 @@ function registerIpcHandlers(): void {
 
     const filePath = resolve(result.filePaths[0])
     addFileRoot(filePath)
-    await addRecentFile(filePath)
-    return readMarkdown(filePath)
+    // File data is returned only after the successful read is recorded.
+    const data = await readMarkdown(filePath)
+    await recordRecentFile(filePath)
+    return data
   })
 
   ipcMain.handle(IPC_CHANNELS.fileOpenPath, async (_event, filePath: string) => {
     const resolved = resolve(filePath)
     addFileRoot(resolved)
-    await addRecentFile(resolved)
-    return readMarkdown(resolved)
+    // File data is returned only after the successful read is recorded.
+    const data = await readMarkdown(resolved)
+    await recordRecentFile(resolved)
+    return data
   })
   ipcMain.handle(IPC_CHANNELS.fileRead, async (_event, filePath: string) => {
     const resolved = resolve(filePath)
@@ -137,6 +155,7 @@ function registerIpcHandlers(): void {
     try {
       await writeMarkdown(resolved, request.content, request.newline, request.hasBom)
       succeeded = true
+      await recordRecentFile(resolved)
       return { path: resolved, name: resolved.split(/[\\/]/).pop() ?? '', savedAt: Date.now() }
     } finally {
       endInternalWrite(resolved, succeeded)
@@ -158,8 +177,8 @@ function registerIpcHandlers(): void {
 
       const filePath = resolve(result.filePath)
       addFileRoot(filePath)
-      await addRecentFile(filePath)
       await writeMarkdown(filePath, payload.content, payload.newline, payload.hasBom)
+      await recordRecentFile(filePath)
       return { path: filePath, name: filePath.split(/[\\/]/).pop() ?? '', savedAt: Date.now() }
     }
   )

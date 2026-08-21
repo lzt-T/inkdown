@@ -83,6 +83,12 @@ function App(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
+    return window.api.settings.onRecentChanged((recent) => {
+      useEditorStore.getState().setRecent(recent)
+    })
+  }, [])
+
+  useEffect(() => {
     return window.api.menu.onAction((action) => {
       // Current store snapshot routes native menu commands.
       const store = useEditorStore.getState()
