@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Validate tag and package version
+        shell: bash
+        run: |
+          node <<'NODE'
+          const tag = process.env.GITHUB_REF_NAME
+          const version = require('./package.json').version
+
+          if (!/^v\d+\.\d+\.\d+$/.test(tag)) {
+            throw new Error(`Tag ${tag} must use the vX.Y.Z format`)
+          }
+          if (`v${version}` !== tag) {
+            throw new Error(`Tag ${tag} does not match package version ${version}`)
+          }
+          NODE
+
+  build:
+    needs: validate-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            package-command: pnpm exec electron-builder --win nsis --x64 --publish never
+          - name: linux
+            os: ubuntu-latest
+            package-command: pnpm exec electron-builder --linux AppImage --x64 --publish never
+          - name: macos
+            os: macos-15
+            package-command: pnpm exec electron-builder --mac --publish never
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+          run_install: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build application
+        run: pnpm run build
+      - name: Package application
+        run: ${{ matrix.package-command }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/*.AppImage
+            dist/*.AppImage.blockmap
+            dist/*.dmg
+            dist/*.zip
+            dist/*.zip.blockmap
+            dist/latest*.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-artifacts
+          merge-multiple: true
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: release-artifacts/*

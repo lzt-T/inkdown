@@ -32,6 +32,7 @@ import {
   startWorkspaceWatcher,
   stopWorkspaceWatcher
 } from './watcher'
+import { startAutoUpdater } from './updater'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -46,8 +47,12 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
+// Main application window is shared by native handlers and update prompts.
 let mainWindow: BrowserWindow | null = null
+// Dirty document count protects unsaved editor content during application exit.
 let dirtyCount = 0
+// Update installation bypasses the normal close confirmation after explicit consent.
+let isInstallingUpdate = false
 
 function getWindow(): BrowserWindow {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('主窗口不可用')
@@ -361,7 +366,7 @@ async function createWindow(): Promise<void> {
     mainWindow = null
   })
   window.on('close', (event) => {
-    if (dirtyCount <= 0) {
+    if (isInstallingUpdate || dirtyCount <= 0) {
       saveWindowBounds()
       return
     }
@@ -412,6 +417,17 @@ app.whenReady().then(async () => {
   })
 
   await createWindow()
+
+  startAutoUpdater({
+    /** Returns the current window without throwing while the application is closing. */
+    getWindow: () => mainWindow,
+    /** Reports whether any editor document still contains unsaved content. */
+    hasUnsavedDocuments: () => dirtyCount > 0,
+    /** Marks the user-approved update exit so the close guard can allow installation. */
+    prepareToInstall: () => {
+      isInstallingUpdate = true
+    }
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow()
