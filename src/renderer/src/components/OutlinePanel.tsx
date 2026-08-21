@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 import type { OutlineItem } from '@/lib/outline'
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
@@ -15,6 +17,13 @@ export function OutlinePanel({ items }: { items: OutlineItem[] }): React.JSX.Ele
   const activeHeading = useEditorStore((state) => state.activeHeading)
   // Heading navigation delegates scrolling to the editor store.
   const scrollToHeading = useEditorStore((state) => state.scrollToHeading)
+  // Active item reference keeps the current heading visible in long outlines.
+  const activeItemRef = useRef<HTMLButtonElement>(null)
+
+  // Minimal nearest-edge scrolling avoids repositioning headings that are already visible.
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeHeading])
 
   return (
     <div className="flex h-full flex-col">
@@ -41,6 +50,7 @@ export function OutlinePanel({ items }: { items: OutlineItem[] }): React.JSX.Ele
 
               return (
                 <button
+                  ref={isActive ? activeItemRef : null}
                   key={`${item.line}-${index}`}
                   type="button"
                   aria-current={isActive ? 'location' : undefined}
