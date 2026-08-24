@@ -1,18 +1,12 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeft, Check, FolderOpen, Image, Info, Moon, Palette, Sun } from 'lucide-react'
-import { toast } from 'sonner'
+import { useState } from 'react'
+import { ArrowLeft, Check, Image, Info, Moon, Palette, Sun } from 'lucide-react'
 import { AboutSettingsSection } from '@/pages/settings/components/AboutSettingsSection'
+import { ImageSettingsSection } from '@/pages/settings/components/ImageSettingsSection'
 import { useEditorStore } from '@/store/editor-store'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import type { UpdateCheckViewState } from '@/hooks/useAppUpdater'
 import { cn } from '@/lib/utils'
-import type {
-  AppUpdateState,
-  ImageStorageMode,
-  ImageStorageSettings,
-  ThemeMode
-} from '../../../../shared/contracts'
+import type { AppUpdateState, ThemeMode } from '../../../../shared/contracts'
 
 interface SettingsPageProps {
   onClose: () => void
@@ -61,12 +55,6 @@ const SETTINGS_CATEGORIES: SettingsCategoryOption[] = [
   { value: 'about', label: '关于', icon: Info }
 ]
 
-// Image storage labels map fixed strategy keys to their visible names.
-const IMAGE_STORAGE_MODE_LABELS: Record<ImageStorageMode, string> = {
-  relative: '相对文档目录',
-  global: '全局固定目录'
-}
-
 /** Renders the dedicated application settings workspace. */
 export function SettingsPage({
   onClose,
@@ -82,77 +70,6 @@ export function SettingsPage({
   const setTheme = useEditorStore((state) => state.setTheme)
   // Active category selects the visible settings section.
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('appearance')
-  // Persisted image settings drive mode selection and directory values.
-  const [imageStorage, setImageStorage] = useState<ImageStorageSettings | null>(null)
-  // Relative directory input keeps editable text separate from persisted settings.
-  const [relativeDirectory, setRelativeDirectory] = useState('assets')
-  // Saving state prevents overlapping directory and mode updates.
-  const [isSavingImageSettings, setIsSavingImageSettings] = useState(false)
-  // Relative directory error is announced and reflected by the input state.
-  const [relativeDirectoryError, setRelativeDirectoryError] = useState<string | null>(null)
-
-  /** Persists image settings and synchronizes normalized values returned by the main process. */
-  const persistImageStorage = async (next: ImageStorageSettings): Promise<boolean> => {
-    setIsSavingImageSettings(true)
-    try {
-      // Main-process response contains normalized paths accepted for future imports.
-      const state = await window.api.settings.set({ imageStorage: next })
-      setImageStorage(state.imageStorage)
-      setRelativeDirectory(state.imageStorage.relativeDirectory)
-      setRelativeDirectoryError(null)
-      return true
-    } catch (error) {
-      toast.error('图片保存设置未更新', { description: String(error) })
-      return false
-    } finally {
-      setIsSavingImageSettings(false)
-    }
-  }
-
-  /** Selects and persists a global image directory, switching mode only after confirmation. */
-  const selectGlobalDirectory = async (): Promise<void> => {
-    if (!imageStorage || isSavingImageSettings) return
-    // Canceled native selection leaves the current settings unchanged.
-    const directory = await window.api.image.selectDirectory()
-    if (!directory) return
-    await persistImageStorage({ ...imageStorage, mode: 'global', globalDirectory: directory })
-  }
-
-  /** Changes image storage mode while requiring a directory before entering global mode. */
-  const changeImageStorageMode = async (mode: ImageStorageMode): Promise<void> => {
-    if (!imageStorage || imageStorage.mode === mode || isSavingImageSettings) return
-    if (mode === 'global' && !imageStorage.globalDirectory) {
-      await selectGlobalDirectory()
-      return
-    }
-    await persistImageStorage({ ...imageStorage, mode })
-  }
-
-  /** Saves the relative directory or restores the last accepted value after validation fails. */
-  const saveRelativeDirectory = async (): Promise<void> => {
-    if (!imageStorage || isSavingImageSettings) return
-    if (relativeDirectory === imageStorage.relativeDirectory) return
-    // Failed main-process validation restores the last persisted path.
-    const isSaved = await persistImageStorage({ ...imageStorage, relativeDirectory })
-    if (!isSaved) {
-      setRelativeDirectory(imageStorage.relativeDirectory)
-      setRelativeDirectoryError('请输入不包含绝对路径或“..”的相对目录')
-    }
-  }
-
-  useEffect(() => {
-    // Mounted guard prevents applying settings after the page closes.
-    let mounted = true
-    void window.api.settings.get().then((state) => {
-      if (!mounted) return
-      setImageStorage(state.imageStorage)
-      setRelativeDirectory(state.imageStorage.relativeDirectory)
-    })
-    return () => {
-      mounted = false
-    }
-  }, [])
-
   // Section map keeps fixed category dispatch explicit and traceable.
   const sectionContent: Record<SettingsCategory, React.JSX.Element> = {
     appearance: (
@@ -243,118 +160,7 @@ export function SettingsPage({
         </div>
       </div>
     ),
-    images: (
-      <div className="max-w-3xl">
-        <h2 className="text-base font-semibold text-foreground">图片</h2>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          设置新插入图片的保存位置，已有图片不会被移动。
-        </p>
-
-        <div className="mt-7">
-          <h3 className="text-sm font-medium text-foreground">保存位置</h3>
-          {imageStorage ? (
-            <div className="mt-3 space-y-5">
-              <div
-                role="group"
-                aria-label="图片保存模式"
-                className="inline-grid grid-cols-2 rounded-md bg-muted p-1"
-              >
-                {(['relative', 'global'] as const).map((mode) => {
-                  // Mode label is a fixed value selected through the storage strategy key.
-                  const label = IMAGE_STORAGE_MODE_LABELS[mode]
-                  // Pressed state communicates the currently persisted strategy.
-                  const isSelected = imageStorage.mode === mode
-                  return (
-                    <button
-                      key={mode}
-                      type="button"
-                      aria-pressed={isSelected}
-                      disabled={isSavingImageSettings}
-                      onClick={() => void changeImageStorageMode(mode)}
-                      className={cn(
-                        'rounded-sm px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50',
-                        isSelected
-                          ? 'bg-background text-foreground shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {imageStorage.mode === 'relative' ? (
-                <div>
-                  <label htmlFor="relative-image-directory" className="text-sm font-medium text-foreground">
-                    相对目录
-                  </label>
-                  <Input
-                    id="relative-image-directory"
-                    value={relativeDirectory}
-                    disabled={isSavingImageSettings}
-                    aria-invalid={Boolean(relativeDirectoryError)}
-                    aria-describedby="relative-image-directory-help"
-                    className="mt-2 max-w-xl"
-                    placeholder="assets"
-                    onChange={(event) => {
-                      setRelativeDirectory(event.target.value)
-                      setRelativeDirectoryError(null)
-                    }}
-                    onBlur={() => void saveRelativeDirectory()}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') event.currentTarget.blur()
-                      if (event.key === 'Escape') {
-                        setRelativeDirectory(imageStorage.relativeDirectory)
-                        setRelativeDirectoryError(null)
-                        event.currentTarget.blur()
-                      }
-                    }}
-                  />
-                  <p
-                    id="relative-image-directory-help"
-                    className={cn(
-                      'mt-2 text-xs leading-5',
-                      relativeDirectoryError ? 'text-destructive' : 'text-muted-foreground'
-                    )}
-                  >
-                    {relativeDirectoryError ?? '例如 assets、assets/images；使用 . 可保存到文档同目录。'}
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <label htmlFor="global-image-directory" className="text-sm font-medium text-foreground">
-                    全局目录
-                  </label>
-                  <div className="mt-2 flex flex-col gap-2 @min-[36rem]:flex-row">
-                    <Input
-                      id="global-image-directory"
-                      value={imageStorage.globalDirectory ?? ''}
-                      readOnly
-                      className="min-w-0 flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isSavingImageSettings}
-                      onClick={() => void selectGlobalDirectory()}
-                    >
-                      <FolderOpen />
-                      选择文件夹
-                    </Button>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    全局目录使用绝对文件链接，移动文档后仍会引用此目录。
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">正在加载图片设置...</p>
-          )}
-        </div>
-      </div>
-    ),
+    images: <ImageSettingsSection />,
     about: (
       <AboutSettingsSection
         updateState={updateState}

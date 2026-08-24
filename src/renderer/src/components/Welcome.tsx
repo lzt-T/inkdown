@@ -1,4 +1,5 @@
 import { FilePlus, FileText, FolderOpen, History } from 'lucide-react'
+import inkdownLogo from '@/assets/inkdown-logo.png'
 import { useEditorStore } from '@/store/editor-store'
 import { Button } from '@/components/ui/button'
 
@@ -92,7 +93,13 @@ export function Welcome(): React.JSX.Element {
     <div className="@container relative flex h-full overflow-auto bg-background">
       <div className="relative mx-auto grid min-h-full w-full max-w-6xl content-start gap-12 px-8 py-12 @min-[52rem]:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)] @min-[52rem]:content-center @min-[52rem]:items-center @min-[52rem]:px-12">
         <section className="max-w-xl">
-          <FileText className="mb-8 size-7 text-primary" />
+          <img
+            src={inkdownLogo}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            className="mb-8 size-16 select-none"
+          />
 
           <h1 className="text-5xl font-semibold tracking-[-0.03em] text-foreground">Inkdown</h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">

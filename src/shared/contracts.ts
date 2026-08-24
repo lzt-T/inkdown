@@ -1,11 +1,28 @@
 export type ThemeMode = 'light' | 'dark'
 export type EditorMode = 'wysiwyg' | 'source'
-export type ImageStorageMode = 'relative' | 'global'
+export type ImageStorageMode = 'relative' | 'global' | 'github'
+
+export interface GitHubImageStorageSettings {
+  owner: string
+  repository: string
+  branch: string
+}
 
 export interface ImageStorageSettings {
   mode: ImageStorageMode
   relativeDirectory: string
   globalDirectory: string | null
+  github: GitHubImageStorageSettings | null
+}
+
+export interface GitHubImageStorageStatus {
+  settings: GitHubImageStorageSettings | null
+  hasToken: boolean
+}
+
+export interface ConfigureGitHubImageStorageRequest {
+  repository: string
+  token: string | null
 }
 
 export interface FileNode {
@@ -39,13 +56,17 @@ export interface SaveFileResult {
 export interface ImportImageRequest {
   name: string
   data: Uint8Array
-  documentPath: string
+  documentPath: string | null
+  mimeType: string
 }
 
 export interface ImportImageResult {
   src: string
   fileName: string
   relativePath: string | null
+  storageMode: ImageStorageMode | 'embedded'
+  fallbackReason?: 'unsaved-document' | 'local-import-failed'
+  fallbackDescription?: string
 }
 
 export interface RecentState {
@@ -105,6 +126,9 @@ export const IPC_CHANNELS = {
   fileChanged: 'file:changed',
   imageImport: 'image:import',
   imageSelectDirectory: 'image:select-directory',
+  imageGitHubStatus: 'image:github-status',
+  imageGitHubConfigure: 'image:github-configure',
+  imageGitHubClear: 'image:github-clear',
   windowMinimize: 'window:minimize',
   windowToggleMaximize: 'window:toggle-maximize',
   windowClose: 'window:close',

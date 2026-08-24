@@ -15,6 +15,7 @@ import {
   X
 } from 'lucide-react'
 import type { AppUpdateState } from '../../../shared/contracts'
+import inkdownLogo from '@/assets/inkdown-logo.png'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -150,6 +151,14 @@ export function Titlebar({
   return (
     <header className="app-drag flex h-10 shrink-0 items-center border-b bg-panel px-2 text-muted-foreground">
       <div className={cn('flex min-w-0 items-center gap-0.5', isMac && 'pl-16')}>
+        <img
+          src={inkdownLogo}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="pointer-events-none mx-0.5 size-4.5 shrink-0 select-none opacity"
+        />
+        <Separator orientation="vertical" className="mx-1 h-4" />
         <TitlebarAction label="切换文件树" isActive={sidebarOpen} onClick={toggleSidebar}>
           {sidebarOpen ? <PanelLeftOpen /> : <PanelLeftClose />}
         </TitlebarAction>

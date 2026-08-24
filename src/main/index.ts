@@ -1,24 +1,23 @@
 import { app, shell, BrowserWindow, dialog, ipcMain, net, protocol } from 'electron'
-import { dirname, isAbsolute, join, resolve } from 'path'
+import { join, resolve } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import {
   IPC_CHANNELS,
+  type ConfigureGitHubImageStorageRequest,
   type FileNode,
-  type ImageStorageSettings,
   type ImportImageRequest,
   type MenuAction,
   type PersistedState,
   type WriteFileRequest
 } from '../shared/contracts'
-import { addFileRoot, addWorkspaceRoot, isAuthorized, isInside, setImageRoot } from './security'
+import { addFileRoot, addWorkspaceRoot, isAuthorized, setImageRoot } from './security'
 import { installApplicationMenu } from './menu'
 import { loadState, addRecentWorkspace, addRecentFile, updateState } from './state'
 import {
   createFolder,
   createMarkdownFile,
-  importImage,
   readMarkdown,
   renameEntry,
   revealEntry,
@@ -33,6 +32,12 @@ import {
   stopWorkspaceWatcher
 } from './watcher'
 import { startAutoUpdater } from './updater'
+import { importStoredImage, normalizeImageStorageSettings } from './image-storage'
+import {
+  clearGitHubImageStorageToken,
+  configureGitHubImageStorage,
+  getGitHubImageStorageStatus
+} from './github-image-storage'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -77,66 +82,6 @@ async function recordRecentFile(filePath: string): Promise<void> {
   // Updated recent state is the event payload consumed by the renderer.
   const recent = await addRecentFile(filePath)
   sendToRenderer(IPC_CHANNELS.recentChanged, recent)
-}
-
-/** Validates and normalizes the document-relative image directory setting. */
-function normalizeRelativeImageDirectory(value: string): string {
-  // Forward slashes keep the persisted setting portable across desktop platforms.
-  const normalized = value.trim().replace(/\\/g, '/').replace(/\/+/g, '/')
-  // Path segments prevent configured images from escaping the document directory.
-  const segments = normalized.split('/').filter((segment) => segment && segment !== '.')
-  if (
-    !normalized ||
-    isAbsolute(normalized) ||
-    /^[a-zA-Z]:\//.test(normalized) ||
-    normalized.startsWith('/') ||
-    normalized.split('/').includes('..')
-  ) {
-    throw new Error('请输入文档目录内的相对路径')
-  }
-  return segments.length === 0 ? '.' : segments.join('/')
-}
-
-/** Validates image storage settings before they are persisted. */
-function normalizeImageStorageSettings(settings: ImageStorageSettings): ImageStorageSettings {
-  // Global directory is normalized only when the user has selected one.
-  const globalDirectory = settings.globalDirectory ? resolve(settings.globalDirectory) : null
-  if (settings.mode !== 'relative' && settings.mode !== 'global') {
-    throw new Error('未知的图片保存模式')
-  }
-  if (settings.mode === 'global' && !globalDirectory) {
-    throw new Error('请先选择全局图片目录')
-  }
-  return {
-    mode: settings.mode,
-    relativeDirectory: normalizeRelativeImageDirectory(settings.relativeDirectory),
-    globalDirectory
-  }
-}
-
-/** Resolves an authorized image directory from persisted settings and the active document. */
-async function resolveImageTarget(request: ImportImageRequest): Promise<{
-  targetDir: string
-  documentDir: string
-}> {
-  // Document authorization prevents arbitrary renderer paths from becoming write roots.
-  const documentPath = resolve(request.documentPath)
-  if (!isAuthorized(documentPath)) throw new Error('文档不在授权范围内')
-
-  // Current persisted settings are the source of truth for every import.
-  const settings = (await loadState()).imageStorage
-  // Document directory anchors relative image locations and Markdown links.
-  const documentDir = dirname(documentPath)
-  if (settings.mode === 'global') {
-    if (!settings.globalDirectory) throw new Error('请先选择全局图片目录')
-    setImageRoot(settings.globalDirectory)
-    return { targetDir: settings.globalDirectory, documentDir }
-  }
-
-  // Normalized relative directory must remain inside the document directory.
-  const targetDir = resolve(documentDir, normalizeRelativeImageDirectory(settings.relativeDirectory))
-  if (!isInside(documentDir, targetDir)) throw new Error('图片目录不能超出文档目录')
-  return { targetDir, documentDir }
 }
 
 function registerProtocolHandler(): void {
@@ -283,9 +228,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.imageImport,
     async (_event, request: ImportImageRequest) => {
-      // Main process derives the destination from trusted persisted settings.
-      const target = await resolveImageTarget(request)
-      return importImage({ name: request.name, data: request.data, ...target })
+      // Main process derives the active strategy from trusted persisted settings.
+      return importStoredImage(request)
     }
   )
 
@@ -296,6 +240,31 @@ function registerIpcHandlers(): void {
       properties: ['openDirectory', 'createDirectory']
     })
     return result.canceled || result.filePaths.length === 0 ? null : resolve(result.filePaths[0])
+  })
+
+  ipcMain.handle(IPC_CHANNELS.imageGitHubStatus, async () => getGitHubImageStorageStatus())
+  ipcMain.handle(
+    IPC_CHANNELS.imageGitHubConfigure,
+    async (_event, request: ConfigureGitHubImageStorageRequest) => {
+      // Repository validation and secret storage complete before GitHub mode becomes active.
+      const github = await configureGitHubImageStorage(request)
+      // Latest state preserves unrelated image settings while activating the validated strategy.
+      const current = await loadState()
+      await updateState({ imageStorage: { ...current.imageStorage, mode: 'github', github } })
+      return { settings: github, hasToken: true }
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.imageGitHubClear, async () => {
+    // Persisted mode changes first so a failed credential deletion cannot leave GitHub active.
+    const current = await loadState()
+    // Active GitHub storage falls back to the portable document-relative default.
+    const mode = current.imageStorage.mode === 'github' ? 'relative' : current.imageStorage.mode
+    // Updated state removes public repository metadata before the credential is deleted.
+    const state = await updateState({
+      imageStorage: { ...current.imageStorage, mode, github: null }
+    })
+    await clearGitHubImageStorageToken()
+    return state.imageStorage
   })
 
   ipcMain.handle(IPC_CHANNELS.windowMinimize, () => getWindow().minimize())

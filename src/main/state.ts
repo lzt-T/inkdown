@@ -13,7 +13,8 @@ const defaultRecent: RecentState = { workspaces: [], files: [], lastWorkspace: n
 const defaultImageStorage: ImageStorageSettings = {
   mode: 'relative',
   relativeDirectory: 'assets',
-  globalDirectory: null
+  globalDirectory: null,
+  github: null
 }
 // Default persisted state is merged with older state files during loading.
 const defaultState: PersistedState = {

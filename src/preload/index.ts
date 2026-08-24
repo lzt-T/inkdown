@@ -4,7 +4,11 @@ import {
   IPC_CHANNELS,
   type AppUpdateCheckResult,
   type AppUpdateState,
+  type ConfigureGitHubImageStorageRequest,
+  type GitHubImageStorageStatus,
+  type ImageStorageSettings,
   type ImportImageRequest,
+  type ImportImageResult,
   type MenuAction,
   type PersistedState,
   type RecentState,
@@ -38,9 +42,22 @@ const api = {
     reveal: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.fileReveal, path)
   },
   image: {
-    import: (request: ImportImageRequest) => ipcRenderer.invoke(IPC_CHANNELS.imageImport, request),
+    import: (request: ImportImageRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.imageImport, request) as Promise<ImportImageResult>,
     /** Opens the native picker used for global image storage. */
-    selectDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.imageSelectDirectory) as Promise<string | null>
+    selectDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.imageSelectDirectory) as Promise<string | null>,
+    /** Returns public GitHub settings and whether an encrypted token is available. */
+    getGitHubStatus: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.imageGitHubStatus) as Promise<GitHubImageStorageStatus>,
+    /** Validates and securely persists one GitHub image repository configuration. */
+    configureGitHub: (request: ConfigureGitHubImageStorageRequest) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.imageGitHubConfigure,
+        request
+      ) as Promise<GitHubImageStorageStatus>,
+    /** Removes GitHub image configuration and its encrypted credential. */
+    clearGitHub: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.imageGitHubClear) as Promise<ImageStorageSettings>
   },
   window: {
     minimize: () => ipcRenderer.invoke(IPC_CHANNELS.windowMinimize),

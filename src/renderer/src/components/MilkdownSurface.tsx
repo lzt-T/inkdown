@@ -15,17 +15,6 @@ function getOutlineHeadings(container: HTMLElement): HTMLElement[] {
   return headings.filter((heading) => !heading.closest('blockquote'))
 }
 
-/** 将本地图片文件读取为可嵌入的 Data URL。 */
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    // FileReader converts browser File objects without filesystem access.
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error ?? new Error('读取文件失败'))
-    reader.readAsDataURL(file)
-  })
-}
-
 /** 渲染支持本地图片导入的 Milkdown 编辑器。 */
 export function MilkdownSurface({
   value,
@@ -51,32 +40,36 @@ export function MilkdownSurface({
 
   /** 将图片导入文档资源目录并返回编辑器可访问地址。 */
   const handleUpload = async (file: File): Promise<string> => {
-    if (!documentPath) {
-      toast.info('文档尚未保存，图片将以 Data URL 嵌入')
-      return fileToDataUrl(file)
-    }
-
     try {
       // Byte payload crosses the preload bridge to the main process.
       const data = new Uint8Array(await file.arrayBuffer())
-      // Imported image result contains the editor-safe local URL.
+      // Imported image result contains a local, embedded, or public GitHub URL.
       const result = await window.api.image.import({
         name: file.name || 'image.png',
         data,
-        documentPath
+        documentPath,
+        mimeType: file.type
       })
+      if (result.fallbackReason === 'unsaved-document') {
+        toast.info('文档尚未保存，图片将以 Data URL 嵌入')
+      }
+      if (result.fallbackReason === 'local-import-failed') {
+        toast.error('图片导入失败，已回退为 Data URL', {
+          description: result.fallbackDescription
+        })
+      }
       return result.src
     } catch (error) {
-      toast.error('图片导入失败，已回退为 Data URL', { description: String(error) })
-      return fileToDataUrl(file)
+      toast.error('图片上传失败，未插入图片', { description: String(error) })
+      throw error
     }
   }
 
-  // 图片上传配置显式允许由主进程授权保护的本地文件协议。
+  // 图片上传配置允许受保护的本地协议和 GitHub 返回的 HTTPS 地址。
   const imageUploadConfig = {
     upload: handleUpload,
     maxFileSize: 10 * 1024 * 1024,
-    allowedProtocols: ['inkdown-file:']
+    allowedProtocols: ['inkdown-file:', 'https:']
   }
 
   useEffect(() => {

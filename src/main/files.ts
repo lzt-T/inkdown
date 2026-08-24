@@ -109,6 +109,7 @@ export async function importImage(input: {
   data: Uint8Array
   targetDir: string
   documentDir: string
+  storageMode: 'relative' | 'global'
 }): Promise<ImportImageResult> {
   const targetDir = resolve(input.targetDir)
   if (!isAuthorized(targetDir)) throw new Error('目标目录不在授权范围内')
@@ -125,7 +126,8 @@ export async function importImage(input: {
   return {
     src: fileToInkdownUrl(destination),
     fileName: basename(destination),
-    relativePath
+    relativePath,
+    storageMode: input.storageMode
   }
 }
 
