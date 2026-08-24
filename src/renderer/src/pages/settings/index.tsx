@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Check, FolderOpen, Image, Info, Moon, Palette, Sun } from 'lucide-react'
 import { toast } from 'sonner'
-import { AboutSettingsSection } from '@/components/AboutSettingsSection'
+import { AboutSettingsSection } from '@/pages/settings/components/AboutSettingsSection'
 import { useEditorStore } from '@/store/editor-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,7 @@ import type {
   ImageStorageMode,
   ImageStorageSettings,
   ThemeMode
-} from '../../../shared/contracts'
+} from '../../../../shared/contracts'
 
 interface SettingsPageProps {
   onClose: () => void

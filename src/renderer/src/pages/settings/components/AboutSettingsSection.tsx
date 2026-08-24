@@ -1,5 +1,5 @@
 import { Download, Info, LoaderCircle, RefreshCw } from 'lucide-react'
-import type { AppUpdateState } from '../../../shared/contracts'
+import type { AppUpdateState } from '../../../../../shared/contracts'
 import { Button } from '@/components/ui/button'
 import type { UpdateCheckViewState } from '@/hooks/useAppUpdater'
 
