@@ -1,6 +1,13 @@
 export type ThemeMode = 'light' | 'dark'
 export type EditorMode = 'wysiwyg' | 'source'
 export type ImageStorageMode = 'relative' | 'global' | 'github'
+export type ProxyMode = 'system' | 'direct' | 'manual'
+
+/** Defines the application-wide proxy behavior persisted on this device. */
+export interface ProxySettings {
+  mode: ProxyMode
+  server: string
+}
 
 export interface GitHubImageStorageSettings {
   owner: string
@@ -79,6 +86,7 @@ export interface PersistedState {
   recent: RecentState
   theme: ThemeMode
   imageStorage: ImageStorageSettings
+  proxy: ProxySettings
   windowBounds: { width: number; height: number; x?: number; y?: number } | null
 }
 

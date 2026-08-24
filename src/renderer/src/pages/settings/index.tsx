@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ArrowLeft, Check, Image, Info, Moon, Palette, Sun } from 'lucide-react'
+import { ArrowLeft, Check, Image, Info, Moon, Network, Palette, Sun } from 'lucide-react'
 import { AboutSettingsSection } from '@/pages/settings/components/AboutSettingsSection'
 import { ImageSettingsSection } from '@/pages/settings/components/ImageSettingsSection'
+import { ProxySettingsSection } from '@/pages/settings/components/ProxySettingsSection'
 import { useEditorStore } from '@/store/editor-store'
 import { Button } from '@/components/ui/button'
 import type { UpdateCheckViewState } from '@/hooks/useAppUpdater'
@@ -24,7 +25,7 @@ interface ThemeOption {
   icon: typeof Sun
 }
 
-type SettingsCategory = 'appearance' | 'images' | 'about'
+type SettingsCategory = 'appearance' | 'images' | 'network' | 'about'
 
 interface SettingsCategoryOption {
   value: SettingsCategory
@@ -52,6 +53,7 @@ const THEME_OPTIONS: ThemeOption[] = [
 const SETTINGS_CATEGORIES: SettingsCategoryOption[] = [
   { value: 'appearance', label: '外观', icon: Palette },
   { value: 'images', label: '图片', icon: Image },
+  { value: 'network', label: '网络', icon: Network },
   { value: 'about', label: '关于', icon: Info }
 ]
 
@@ -161,6 +163,7 @@ export function SettingsPage({
       </div>
     ),
     images: <ImageSettingsSection />,
+    network: <ProxySettingsSection />,
     about: (
       <AboutSettingsSection
         updateState={updateState}

@@ -38,6 +38,7 @@ import {
   configureGitHubImageStorage,
   getGitHubImageStorageStatus
 } from './github-image-storage'
+import { applyProxySettings } from './proxy'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -278,10 +279,16 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.settingsGet, async () => loadState())
   ipcMain.handle(IPC_CHANNELS.settingsSet, async (_event, patch: Partial<PersistedState>) => {
+    // Proxy settings are validated and applied before becoming the persisted source of truth.
+    const proxy = patch.proxy ? await applyProxySettings(patch.proxy) : undefined
     // Image settings receive path validation before sharing the generic persistence flow.
-    const normalizedPatch = patch.imageStorage
-      ? { ...patch, imageStorage: normalizeImageStorageSettings(patch.imageStorage) }
-      : patch
+    const normalizedPatch: Partial<PersistedState> = {
+      ...patch,
+      ...(patch.imageStorage
+        ? { imageStorage: normalizeImageStorageSettings(patch.imageStorage) }
+        : {}),
+      ...(proxy ? { proxy } : {})
+    }
     // Updated state supplies the protocol authorization used immediately after saving.
     const state = await updateState(normalizedPatch)
     setImageRoot(state.imageStorage.globalDirectory)
@@ -377,6 +384,10 @@ app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.inkdown.app')
   registerProtocolHandler()
   registerIpcHandlers()
+
+  // Persisted proxy settings must be active before any updater or window network request.
+  const initialState = await loadState()
+  await applyProxySettings(initialState.proxy)
 
   // Update controller stores actionable state until the renderer is ready.
   const updater = startAutoUpdater({

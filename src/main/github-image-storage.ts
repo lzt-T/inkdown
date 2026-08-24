@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { app, safeStorage } from 'electron'
+import { app, net, safeStorage } from 'electron'
 import { promises as fs } from 'fs'
 import { basename, join } from 'path'
 import type {
@@ -145,7 +145,7 @@ export async function configureGitHubImageStorage(
   // Blank replacement input deliberately reuses the existing encrypted credential.
   const token = request.token?.trim() || (await readGitHubToken())
   // Repository metadata confirms visibility and discovers the default branch.
-  const response = await fetch(
+  const response = await net.fetch(
     `${GITHUB_API_URL}/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.repository)}`,
     { headers: githubHeaders(token) }
   )
@@ -195,7 +195,7 @@ async function uploadGitHubImageNow(input: {
   // Segment encoding preserves repository separators while escaping filename characters.
   const encodedPath = imagePath.split('/').map(encodeURIComponent).join('/')
   // Contents API creates one file and commit on the configured default branch.
-  const response = await fetch(
+  const response = await net.fetch(
     `${GITHUB_API_URL}/repos/${encodeURIComponent(settings.owner)}/${encodeURIComponent(settings.repository)}/contents/${encodedPath}`,
     {
       method: 'PUT',

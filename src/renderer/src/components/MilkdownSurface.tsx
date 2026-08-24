@@ -182,7 +182,7 @@ export function MilkdownSurface({
         onChange={onChange}
         theme={theme}
         locale="zh-CN"
-        placeholder="输入 Markdown..."
+        placeholder="输入 Markdown，输入 / 唤起命令菜单..."
         maxHeight="100%"
         debounceMs={160}
         className="h-full"

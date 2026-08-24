@@ -4,6 +4,7 @@ import { join } from 'path'
 import type {
   ImageStorageSettings,
   PersistedState,
+  ProxySettings,
   RecentState,
   ThemeMode
 } from '../shared/contracts'
@@ -16,11 +17,17 @@ const defaultImageStorage: ImageStorageSettings = {
   globalDirectory: null,
   github: null
 }
+// Default proxy behavior follows the operating system without manual overrides.
+const defaultProxy: ProxySettings = {
+  mode: 'system',
+  server: ''
+}
 // Default persisted state is merged with older state files during loading.
 const defaultState: PersistedState = {
   recent: defaultRecent,
   theme: 'light',
   imageStorage: defaultImageStorage,
+  proxy: defaultProxy,
   windowBounds: null
 }
 
@@ -36,7 +43,12 @@ export async function loadState(): Promise<PersistedState> {
       ...defaultState,
       ...parsed,
       recent: { ...defaultRecent, ...(parsed.recent ?? {}) },
-      imageStorage: { ...defaultImageStorage, ...(parsed.imageStorage ?? {}) }
+      imageStorage: { ...defaultImageStorage, ...(parsed.imageStorage ?? {}) },
+      // Explicit fields discard legacy proxy options that are no longer supported.
+      proxy: {
+        mode: parsed.proxy?.mode ?? defaultProxy.mode,
+        server: parsed.proxy?.server ?? defaultProxy.server
+      }
     }
   } catch {
     return structuredClone(defaultState)
@@ -49,7 +61,8 @@ export async function updateState(patch: Partial<PersistedState>): Promise<Persi
     ...current,
     ...patch,
     recent: { ...current.recent, ...(patch.recent ?? {}) },
-    imageStorage: { ...current.imageStorage, ...(patch.imageStorage ?? {}) }
+    imageStorage: { ...current.imageStorage, ...(patch.imageStorage ?? {}) },
+    proxy: { ...current.proxy, ...(patch.proxy ?? {}) }
   }
   await fs.mkdir(app.getPath('userData'), { recursive: true })
   await fs.writeFile(statePath(), JSON.stringify(next, null, 2), 'utf8')
