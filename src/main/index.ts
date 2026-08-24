@@ -322,6 +322,7 @@ function registerIpcHandlers(): void {
   ipcMain.on(IPC_CHANNELS.dirtyCountChanged, (_event, count: number) => {
     dirtyCount = Math.max(0, Number(count) || 0)
   })
+  ipcMain.handle(IPC_CHANNELS.appVersionGet, () => app.getVersion())
 }
 
 function saveWindowBounds(): void {
@@ -408,6 +409,20 @@ app.whenReady().then(async () => {
   registerProtocolHandler()
   registerIpcHandlers()
 
+  // Update controller stores actionable state until the renderer is ready.
+  const updater = startAutoUpdater({
+    /** Marks the user-approved update exit so the close guard can allow installation. */
+    prepareToInstall: () => {
+      isInstallingUpdate = true
+    },
+    /** Broadcasts update state without requiring the renderer to be mounted already. */
+    onStateChanged: (state) => sendToRenderer(IPC_CHANNELS.updaterStateChanged, state)
+  })
+  ipcMain.handle(IPC_CHANNELS.updaterStateGet, updater.getState)
+  ipcMain.handle(IPC_CHANNELS.updaterCheck, updater.check)
+  ipcMain.handle(IPC_CHANNELS.updaterOpenDownload, updater.openDownload)
+  ipcMain.handle(IPC_CHANNELS.updaterInstall, updater.install)
+
   installApplicationMenu((action: MenuAction) => {
     sendToRenderer(IPC_CHANNELS.menuAction, action)
   })
@@ -417,17 +432,6 @@ app.whenReady().then(async () => {
   })
 
   await createWindow()
-
-  startAutoUpdater({
-    /** Returns the current window without throwing while the application is closing. */
-    getWindow: () => mainWindow,
-    /** Reports whether any editor document still contains unsaved content. */
-    hasUnsavedDocuments: () => dirtyCount > 0,
-    /** Marks the user-approved update exit so the close guard can allow installation. */
-    prepareToInstall: () => {
-      isInstallingUpdate = true
-    }
-  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow()

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Check, FolderOpen, Image, Moon, Palette, Sun } from 'lucide-react'
+import { ArrowLeft, Check, FolderOpen, Image, Info, Moon, Palette, Sun } from 'lucide-react'
 import { toast } from 'sonner'
+import { AboutSettingsSection } from '@/components/AboutSettingsSection'
 import { useEditorStore } from '@/store/editor-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import type { UpdateCheckViewState } from '@/hooks/useAppUpdater'
 import { cn } from '@/lib/utils'
 import type {
+  AppUpdateState,
   ImageStorageMode,
   ImageStorageSettings,
   ThemeMode
@@ -13,6 +16,11 @@ import type {
 
 interface SettingsPageProps {
   onClose: () => void
+  updateState: AppUpdateState | null
+  currentVersion: string | null
+  checkState: UpdateCheckViewState
+  onCheckForUpdates: () => void
+  onOpenUpdate: () => void
 }
 
 interface ThemeOption {
@@ -22,7 +30,7 @@ interface ThemeOption {
   icon: typeof Sun
 }
 
-type SettingsCategory = 'appearance' | 'images'
+type SettingsCategory = 'appearance' | 'images' | 'about'
 
 interface SettingsCategoryOption {
   value: SettingsCategory
@@ -49,7 +57,8 @@ const THEME_OPTIONS: ThemeOption[] = [
 // Settings categories provide a fixed navigation-to-section mapping.
 const SETTINGS_CATEGORIES: SettingsCategoryOption[] = [
   { value: 'appearance', label: '外观', icon: Palette },
-  { value: 'images', label: '图片', icon: Image }
+  { value: 'images', label: '图片', icon: Image },
+  { value: 'about', label: '关于', icon: Info }
 ]
 
 // Image storage labels map fixed strategy keys to their visible names.
@@ -59,7 +68,14 @@ const IMAGE_STORAGE_MODE_LABELS: Record<ImageStorageMode, string> = {
 }
 
 /** Renders the dedicated application settings workspace. */
-export function SettingsPage({ onClose }: SettingsPageProps): React.JSX.Element {
+export function SettingsPage({
+  onClose,
+  updateState,
+  currentVersion,
+  checkState,
+  onCheckForUpdates,
+  onOpenUpdate
+}: SettingsPageProps): React.JSX.Element {
   // Current theme controls the selected appearance option.
   const theme = useEditorStore((state) => state.theme)
   // Theme updates reuse the existing persistence flow in App.
@@ -338,6 +354,15 @@ export function SettingsPage({ onClose }: SettingsPageProps): React.JSX.Element 
           )}
         </div>
       </div>
+    ),
+    about: (
+      <AboutSettingsSection
+        updateState={updateState}
+        currentVersion={currentVersion}
+        checkState={checkState}
+        onCheckForUpdates={onCheckForUpdates}
+        onOpenUpdate={onOpenUpdate}
+      />
     )
   }
 

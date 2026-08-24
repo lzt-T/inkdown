@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   Code2,
+  Download,
   FilePlus,
   FileText,
   FolderOpen,
@@ -13,16 +14,25 @@ import {
   Square,
   X
 } from 'lucide-react'
+import type { AppUpdateState } from '../../../shared/contracts'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
 
+// Update action labels describe the command behind the temporary titlebar entry.
+const UPDATE_ACTION_LABELS: Record<AppUpdateState['action'], string> = {
+  download: '查看可用更新',
+  install: '安装已下载更新'
+}
+
 interface TitlebarProps {
   isSettingsOpen: boolean
+  updateState: AppUpdateState | null
   onOpenSettings: () => void
   onReturnToEditor: () => void
+  onOpenUpdate: () => void
 }
 
 interface TitlebarActionProps {
@@ -75,8 +85,10 @@ function TitlebarAction({
 /** Renders the native window toolbar and primary editor actions. */
 export function Titlebar({
   isSettingsOpen,
+  updateState,
   onOpenSettings,
-  onReturnToEditor
+  onReturnToEditor,
+  onOpenUpdate
 }: TitlebarProps): React.JSX.Element {
   // Editor state and actions power the toolbar controls.
   const {
@@ -170,6 +182,16 @@ export function Titlebar({
         <TitlebarAction label="切换源码模式" isActive={mode === 'source'} onClick={toggleMode}>
           <Code2 />
         </TitlebarAction>
+        {updateState && (
+          <TitlebarAction
+            label={UPDATE_ACTION_LABELS[updateState.action]}
+            className="relative text-primary hover:text-primary"
+            onClick={onOpenUpdate}
+          >
+            <Download />
+            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary ring-2 ring-panel" />
+          </TitlebarAction>
+        )}
         <Separator orientation="vertical" className="mx-1.5 h-4" />
         <TitlebarAction
           label={isSettingsOpen ? '返回编辑器' : '打开设置'}

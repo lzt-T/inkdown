@@ -7,6 +7,8 @@ import { OutlinePanel } from '@/components/OutlinePanel'
 import { SettingsPage } from '@/components/SettingsPage'
 import { StatusBar } from '@/components/StatusBar'
 import { Titlebar } from '@/components/Titlebar'
+import { UpdateDialog } from '@/components/UpdateDialog'
+import { useAppUpdater } from '@/hooks/useAppUpdater'
 import { cn } from '@/lib/utils'
 import { parseOutline } from '@/lib/outline'
 import { useEditorStore } from '@/store/editor-store'
@@ -37,13 +39,10 @@ function App(): React.JSX.Element {
   const activeDiskPath = useEditorStore((state) =>
     activeKey ? (state.openDocs[activeKey]?.diskPath ?? null) : null
   )
-  // Dirty document count is forwarded to the native application shell.
-  const dirtyCount = useEditorStore(
-    (state) =>
-      Object.values(state.openDocs).filter((doc) => doc.rawMarkdown !== doc.savedRawMarkdown).length
-  )
   // Settings visibility selects the active shell surface.
   const isSettingsOpen = activeSurface === 'settings'
+  // Updater state coordinates notifications, titlebar access, and the detail dialog.
+  const updater = useAppUpdater()
 
   /** Opens the dedicated settings workspace. */
   const openSettings = (): void => setActiveSurface('settings')
@@ -130,7 +129,7 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  useEffect(() => window.api.app.setDirtyCount(dirtyCount), [dirtyCount])
+  useEffect(() => window.api.app.setDirtyCount(updater.dirtyCount), [updater.dirtyCount])
 
   useEffect(() => {
     if (
@@ -155,8 +154,10 @@ function App(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <Titlebar
         isSettingsOpen={isSettingsOpen}
+        updateState={updater.updateState}
         onOpenSettings={openSettings}
         onReturnToEditor={returnToEditor}
+        onOpenUpdate={updater.openDialog}
       />
       <div className="relative flex min-h-0 flex-1">
         <div
@@ -189,11 +190,26 @@ function App(): React.JSX.Element {
         </div>
         {isSettingsOpen && (
           <div className="absolute inset-0 flex">
-            <SettingsPage onClose={returnToEditor} />
+            <SettingsPage
+              onClose={returnToEditor}
+              updateState={updater.updateState}
+              currentVersion={updater.currentVersion}
+              checkState={updater.checkState}
+              onCheckForUpdates={() => void updater.checkForUpdates()}
+              onOpenUpdate={updater.openDialog}
+            />
           </div>
         )}
       </div>
       {!isSettingsOpen && <StatusBar />}
+      <UpdateDialog
+        updateState={updater.updateState}
+        dirtyCount={updater.dirtyCount}
+        isOpen={updater.isDialogOpen}
+        isWorking={updater.isWorking}
+        onOpenChange={updater.setDialogOpen}
+        onPrimaryAction={() => void updater.runPrimaryAction()}
+      />
       <SonnerToaster theme={theme} position="bottom-right" richColors closeButton />
     </div>
   )

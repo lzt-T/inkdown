@@ -61,6 +61,16 @@ export interface PersistedState {
   windowBounds: { width: number; height: number; x?: number; y?: number } | null
 }
 
+export interface AppUpdateState {
+  version: string
+  action: 'download' | 'install'
+}
+
+export interface AppUpdateCheckResult {
+  status: 'available' | 'up-to-date' | 'unavailable'
+  version: string | null
+}
+
 export type MenuAction =
   | 'open-workspace'
   | 'open-file'
@@ -104,7 +114,13 @@ export const IPC_CHANNELS = {
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   recentChanged: 'recent:changed',
-  dirtyCountChanged: 'app:dirty-count-changed'
+  dirtyCountChanged: 'app:dirty-count-changed',
+  appVersionGet: 'app:version-get',
+  updaterStateGet: 'updater:state-get',
+  updaterStateChanged: 'updater:state-changed',
+  updaterCheck: 'updater:check',
+  updaterOpenDownload: 'updater:open-download',
+  updaterInstall: 'updater:install'
 } as const
 
 

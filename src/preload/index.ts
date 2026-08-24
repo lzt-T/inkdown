@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {
   IPC_CHANNELS,
+  type AppUpdateCheckResult,
+  type AppUpdateState,
   type ImportImageRequest,
   type MenuAction,
   type PersistedState,
@@ -74,7 +76,25 @@ const api = {
     }
   },
   app: {
-    setDirtyCount: (count: number) => ipcRenderer.send(IPC_CHANNELS.dirtyCountChanged, count)
+    setDirtyCount: (count: number) => ipcRenderer.send(IPC_CHANNELS.dirtyCountChanged, count),
+    getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.appVersionGet) as Promise<string>
+  },
+  updater: {
+    getState: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.updaterStateGet) as Promise<AppUpdateState | null>,
+    onStateChanged: (callback: (state: AppUpdateState) => void) => {
+      /** Forwards actionable update states into the renderer callback. */
+      const listener = (_event: Electron.IpcRendererEvent, state: AppUpdateState): void =>
+        callback(state)
+      ipcRenderer.on(IPC_CHANNELS.updaterStateChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.updaterStateChanged, listener)
+      }
+    },
+    check: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.updaterCheck) as Promise<AppUpdateCheckResult>,
+    openDownload: () => ipcRenderer.invoke(IPC_CHANNELS.updaterOpenDownload) as Promise<boolean>,
+    install: () => ipcRenderer.invoke(IPC_CHANNELS.updaterInstall) as Promise<boolean>
   }
 }
 

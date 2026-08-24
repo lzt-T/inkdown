@@ -137,7 +137,7 @@ button {
 .inkdown-editor-surface .zt-md-editor .ProseMirror {
   min-height: 100%;
   width: 100% !important;
-  max-width: 760px !important;
+  max-width: 900px !important;
   margin-inline: auto !important;
   padding: 40px 40px 140px !important;
 }
@@ -156,7 +156,7 @@ button {
 
 .inkdown-source-surface .cm-content {
   width: 100%;
-  max-width: 760px !important;
+  max-width: 900px !important;
   margin-inline: auto !important;
   padding: 40px 40px 140px !important;
 }
