@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { Toaster as SonnerToaster } from 'sonner'
 import { EditorPane } from '@/components/EditorPane'
 import { FileTree } from '@/components/FileTree'
 import { OutlinePanel } from '@/components/OutlinePanel'
@@ -8,6 +7,7 @@ import { SettingsPage } from '@/pages/settings'
 import { StatusBar } from '@/components/StatusBar'
 import { Titlebar } from '@/components/Titlebar'
 import { UpdateDialog } from '@/components/UpdateDialog'
+import { Toaster } from '@/components/ui/sonner'
 import { useAppUpdater } from '@/hooks/useAppUpdater'
 import { cn } from '@/lib/utils'
 import { parseOutline } from '@/lib/outline'
@@ -210,7 +210,7 @@ function App(): React.JSX.Element {
         onOpenChange={updater.setDialogOpen}
         onPrimaryAction={() => void updater.runPrimaryAction()}
       />
-      <SonnerToaster theme={theme} position="bottom-right" richColors closeButton />
+      <Toaster theme={theme} position="bottom-right" closeButton />
     </div>
   )
 }
