@@ -2,9 +2,23 @@ import { useEffect, useRef } from 'react'
 import { MilkdownEditor } from 'zt-react-milkdown'
 import { toast } from 'sonner'
 
+// Heading selector covers every Markdown heading rendered by ProseMirror.
+const HEADING_SELECTOR =
+  '.ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6'
+// Active heading line sits below the scrollport edge to absorb pixel rounding.
+const ACTIVE_HEADING_OFFSET = 12
+
+/** Returns headings that belong to the document outline rather than blockquotes. */
+function getOutlineHeadings(container: HTMLElement): HTMLElement[] {
+  // DOM filtering mirrors the Markdown token filtering in parseOutline.
+  const headings = Array.from(container.querySelectorAll<HTMLElement>(HEADING_SELECTOR))
+  return headings.filter((heading) => !heading.closest('blockquote'))
+}
+
 /** 将本地图片文件读取为可嵌入的 Data URL。 */
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
+    // FileReader converts browser File objects without filesystem access.
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
     reader.onerror = () => reject(reader.error ?? new Error('读取文件失败'))
@@ -30,7 +44,10 @@ export function MilkdownSurface({
   onActiveHeadingChange: (index: number) => void
   onConsumeHeadingTarget: () => void
 }): React.JSX.Element {
+  // Container reference scopes heading lookup and editor scroll tracking.
   const containerRef = useRef<HTMLDivElement>(null)
+  // Navigation flag prevents programmatic scrolling from replacing the clicked heading.
+  const isOutlineNavigationRef = useRef(false)
 
   /** 将图片导入文档资源目录并返回编辑器可访问地址。 */
   const handleUpload = async (file: File): Promise<string> => {
@@ -40,7 +57,9 @@ export function MilkdownSurface({
     }
 
     try {
+      // Byte payload crosses the preload bridge to the main process.
       const data = new Uint8Array(await file.arrayBuffer())
+      // Imported image result contains the editor-safe local URL.
       const result = await window.api.image.import({
         name: file.name || 'image.png',
         data,
@@ -62,50 +81,104 @@ export function MilkdownSurface({
 
   useEffect(() => {
     if (!headingTarget || !containerRef.current) return
-    const headings = containerRef.current.querySelectorAll<HTMLElement>(
-      '.ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6'
-    )
-    headings[headingTarget.index]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // Filtered headings share the same indexes as the outline panel.
+    const headings = getOutlineHeadings(containerRef.current)
+    // Requested heading must exist before navigation state changes.
+    const targetHeading = headings[headingTarget.index]
+    if (!targetHeading) {
+      onConsumeHeadingTarget()
+      return
+    }
+
+    isOutlineNavigationRef.current = true
+    onActiveHeadingChange(headingTarget.index)
+    targetHeading.scrollIntoView({ behavior: 'smooth', block: 'start' })
     onConsumeHeadingTarget()
-  }, [headingTarget, onConsumeHeadingTarget])
+  }, [headingTarget, onActiveHeadingChange, onConsumeHeadingTarget])
 
   useEffect(() => {
+    // Mounted editor container scopes the scrollport and rendered headings.
     const container = containerRef.current
     if (!container) return
 
-    let observer: IntersectionObserver | null = null
-    const timer = window.setTimeout(() => {
-      const editor = container.querySelector('.zt-md-editor')
-      const headings = Array.from(
-        container.querySelectorAll<HTMLElement>(
-          '.ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6'
-        )
-      )
+    // Scrollable editor reference supports listener cleanup after delayed initialization.
+    let editor: HTMLElement | null = null
+    // Animation frame batches high-frequency scroll events.
+    let animationFrameId: number | null = null
+
+    /** Selects the nearest outline heading above the activation line. */
+    const updateActiveHeading = (): void => {
+      if (!editor || isOutlineNavigationRef.current) return
+      // Current headings reflect Milkdown content and exclude blockquotes.
+      const headings = getOutlineHeadings(container)
       if (headings.length === 0) return
+      // Activation line tolerates small top-edge alignment differences.
+      const activationLine = editor.getBoundingClientRect().top + ACTIVE_HEADING_OFFSET
+      // First heading remains active before the document reaches its initial title.
+      let activeIndex = 0
 
-      observer = new IntersectionObserver(
-        (entries) => {
-          const visible = entries
-            .filter((entry) => entry.isIntersecting)
-            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-          if (visible[0]) {
-            const index = headings.indexOf(visible[0].target as HTMLElement)
-            if (index >= 0) onActiveHeadingChange(index)
-          }
-        },
-        {
-          root: editor ?? null,
-          rootMargin: '0px 0px -70% 0px',
-          threshold: [0, 0.1, 0.2, 0.4]
-        }
-      )
+      // Ordered scan stops after the first heading below the activation line.
+      for (let index = 0; index < headings.length; index += 1) {
+        // Heading position determines whether it has crossed the activation line.
+        const headingTop = headings[index].getBoundingClientRect().top
+        if (headingTop > activationLine) break
+        activeIndex = index
+      }
 
-      headings.forEach((heading) => observer?.observe(heading))
+      onActiveHeadingChange(activeIndex)
+    }
+
+    /** Schedules one active-heading calculation for the current animation frame. */
+    const handleEditorScroll = (): void => {
+      if (animationFrameId !== null) return
+      animationFrameId = window.requestAnimationFrame(() => {
+        animationFrameId = null
+        updateActiveHeading()
+      })
+    }
+
+    /** Releases navigation after the browser completes programmatic scrolling. */
+    const handleEditorScrollEnd = (): void => {
+      if (!isOutlineNavigationRef.current) return
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId)
+        animationFrameId = null
+      }
+      isOutlineNavigationRef.current = false
+    }
+
+    /** Restores scroll tracking before direct user interaction moves the editor. */
+    const handleManualScrollIntent = (): void => {
+      if (!isOutlineNavigationRef.current) return
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId)
+        animationFrameId = null
+      }
+      isOutlineNavigationRef.current = false
+    }
+
+    // Delayed setup waits for Milkdown to render its ProseMirror document.
+    const timer = window.setTimeout(() => {
+      // Scrollable editor element bounds heading visibility calculations.
+      editor = container.querySelector<HTMLElement>('.zt-md-editor')
+      if (!editor) return
+      editor.addEventListener('scroll', handleEditorScroll, { passive: true })
+      editor.addEventListener('scrollend', handleEditorScrollEnd)
+      editor.addEventListener('wheel', handleManualScrollIntent, { passive: true })
+      editor.addEventListener('pointerdown', handleManualScrollIntent)
+      editor.addEventListener('keydown', handleManualScrollIntent)
+      updateActiveHeading()
     }, 250)
 
     return () => {
       window.clearTimeout(timer)
-      observer?.disconnect()
+      editor?.removeEventListener('scroll', handleEditorScroll)
+      editor?.removeEventListener('scrollend', handleEditorScrollEnd)
+      editor?.removeEventListener('wheel', handleManualScrollIntent)
+      editor?.removeEventListener('pointerdown', handleManualScrollIntent)
+      editor?.removeEventListener('keydown', handleManualScrollIntent)
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId)
+      isOutlineNavigationRef.current = false
     }
   }, [value, theme, onActiveHeadingChange])
 

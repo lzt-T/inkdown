@@ -48,7 +48,7 @@ export function TabsBar(): React.JSX.Element | null {
         <div
           role="tablist"
           aria-label="打开的文档"
-          className="flex min-w-0 flex-1 overflow-x-auto"
+          className="inkdown-tabs-scroll flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
         >
           {tabOrder.map((key) => {
             // Document data populates one tab.
@@ -61,7 +61,7 @@ export function TabsBar(): React.JSX.Element | null {
             return (
               <div
                 key={key}
-                className="group relative flex h-full min-w-28 max-w-48 shrink-0 items-center border-r border-border/70"
+                className="group relative flex h-8 min-w-28 max-w-48 shrink-0 items-center border-r border-border/70"
               >
                 <button
                   type="button"

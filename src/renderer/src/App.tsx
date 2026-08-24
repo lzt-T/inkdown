@@ -182,7 +182,7 @@ function App(): React.JSX.Element {
               <>
                 <Separator className="w-px bg-border transition-colors hover:bg-primary/60" />
                 <Panel defaultSize={260} minSize={220} maxSize={380} className="bg-panel">
-                  <OutlinePanel items={outlineItems} />
+                  <OutlinePanel documentKey={activeKey} items={outlineItems} />
                 </Panel>
               </>
             )}
