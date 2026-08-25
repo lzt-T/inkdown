@@ -8,6 +8,7 @@ fileAssociations:
     description: Markdown document
     role: Editor
     mimeType: text/markdown
+    icon: markdown
 publish:
   provider: github
   owner: lzt-T
