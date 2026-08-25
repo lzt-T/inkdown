@@ -173,6 +173,7 @@ function App(): React.JSX.Element {
       <Titlebar
         isSettingsOpen={isSettingsOpen}
         updateState={updater.updateState}
+        downloadProgress={updater.downloadProgress}
         onOpenSettings={openSettings}
         onReturnToEditor={returnToEditor}
         onOpenUpdate={updater.openDialog}

@@ -1,6 +1,10 @@
 import { app, shell } from 'electron'
 import { autoUpdater, type UpdateInfo } from 'electron-updater'
-import type { AppUpdateCheckResult, AppUpdateState } from '../shared/contracts'
+import type {
+  AppUpdateCheckResult,
+  AppUpdateDownloadProgress,
+  AppUpdateState
+} from '../shared/contracts'
 
 // Latest release page is the manual download destination used by macOS.
 const LATEST_RELEASE_URL = 'https://github.com/lzt-T/inkdown/releases/latest'
@@ -8,6 +12,7 @@ const LATEST_RELEASE_URL = 'https://github.com/lzt-T/inkdown/releases/latest'
 interface UpdateServiceOptions {
   prepareToInstall: () => void
   onStateChanged: (state: AppUpdateState) => void
+  onDownloadProgressChanged: (progress: AppUpdateDownloadProgress | null) => void
 }
 
 interface PlatformUpdatePolicy {
@@ -19,6 +24,7 @@ interface PlatformUpdatePolicy {
 
 export interface AutoUpdaterController {
   getState: () => AppUpdateState | null
+  getDownloadProgress: () => AppUpdateDownloadProgress | null
   check: () => Promise<AppUpdateCheckResult>
   openDownload: () => Promise<boolean>
   install: () => boolean
@@ -49,12 +55,20 @@ export function startAutoUpdater(options: UpdateServiceOptions): AutoUpdaterCont
   const policy = UPDATE_POLICIES[process.platform]
   // Current update state survives events emitted before the renderer mounts.
   let updateState: AppUpdateState | null = null
+  // Current download progress survives events emitted before the renderer mounts.
+  let downloadProgress: AppUpdateDownloadProgress | null = null
 
   /** Publishes one actionable update state to the renderer. */
   const publishState = (info: UpdateInfo, action?: AppUpdateState['action']): void => {
     if (!action) return
     updateState = { version: info.version, action }
     options.onStateChanged(updateState)
+  }
+
+  /** Publishes download progress or clears it after completion and failure. */
+  const publishDownloadProgress = (progress: AppUpdateDownloadProgress | null): void => {
+    downloadProgress = progress
+    options.onDownloadProgressChanged(downloadProgress)
   }
 
   /** Checks the configured provider and returns a renderer-safe result. */
@@ -72,6 +86,7 @@ export function startAutoUpdater(options: UpdateServiceOptions): AutoUpdaterCont
   // Controller methods keep renderer actions constrained to the active update state.
   const controller: AutoUpdaterController = {
     getState: () => updateState,
+    getDownloadProgress: () => downloadProgress,
     check: checkForUpdates,
     openDownload: async () => {
       if (updateState?.action !== 'download') return false
@@ -92,11 +107,21 @@ export function startAutoUpdater(options: UpdateServiceOptions): AutoUpdaterCont
   autoUpdater.autoInstallOnAppQuit = policy.autoInstallOnAppQuit
   autoUpdater.on('update-available', (info) => {
     publishState(info, policy.availableAction)
+    if (policy.autoDownload) publishDownloadProgress({ version: info.version, percent: 0 })
+  })
+  autoUpdater.on('download-progress', (progress) => {
+    if (!downloadProgress) return
+    // Rounded bounded percent keeps renderer state stable and display-safe.
+    const percent = Math.min(100, Math.max(0, Math.round(progress.percent)))
+    if (percent === downloadProgress.percent) return
+    publishDownloadProgress({ version: downloadProgress.version, percent })
   })
   autoUpdater.on('update-downloaded', (info) => {
     publishState(info, policy.downloadedAction)
+    publishDownloadProgress(null)
   })
   autoUpdater.on('error', (error) => {
+    publishDownloadProgress(null)
     console.error('自动更新失败:', error)
   })
 

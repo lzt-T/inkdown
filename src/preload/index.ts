@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import {
   IPC_CHANNELS,
   type AppUpdateCheckResult,
+  type AppUpdateDownloadProgress,
   type AppUpdateState,
   type ConfigureGitHubImageStorageRequest,
   type GitHubImageStorageStatus,
@@ -118,6 +119,23 @@ const api = {
       ipcRenderer.on(IPC_CHANNELS.updaterStateChanged, listener)
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.updaterStateChanged, listener)
+      }
+    },
+    getDownloadProgress: () =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.updaterDownloadProgressGet
+      ) as Promise<AppUpdateDownloadProgress | null>,
+    onDownloadProgressChanged: (
+      callback: (progress: AppUpdateDownloadProgress | null) => void
+    ) => {
+      /** Forwards update download progress into the renderer callback. */
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        progress: AppUpdateDownloadProgress | null
+      ): void => callback(progress)
+      ipcRenderer.on(IPC_CHANNELS.updaterDownloadProgressChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.updaterDownloadProgressChanged, listener)
       }
     },
     check: () =>

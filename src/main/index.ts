@@ -445,9 +445,13 @@ app.whenReady().then(async () => {
       isInstallingUpdate = true
     },
     /** Broadcasts update state without requiring the renderer to be mounted already. */
-    onStateChanged: (state) => sendToRenderer(IPC_CHANNELS.updaterStateChanged, state)
+    onStateChanged: (state) => sendToRenderer(IPC_CHANNELS.updaterStateChanged, state),
+    /** Broadcasts download progress without requiring the renderer to be mounted already. */
+    onDownloadProgressChanged: (progress) =>
+      sendToRenderer(IPC_CHANNELS.updaterDownloadProgressChanged, progress)
   })
   ipcMain.handle(IPC_CHANNELS.updaterStateGet, updater.getState)
+  ipcMain.handle(IPC_CHANNELS.updaterDownloadProgressGet, updater.getDownloadProgress)
   ipcMain.handle(IPC_CHANNELS.updaterCheck, updater.check)
   ipcMain.handle(IPC_CHANNELS.updaterOpenDownload, updater.openDownload)
   ipcMain.handle(IPC_CHANNELS.updaterInstall, updater.install)

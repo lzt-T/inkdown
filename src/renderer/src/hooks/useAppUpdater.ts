@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import type { AppUpdateCheckResult, AppUpdateState } from '../../../shared/contracts'
+import type {
+  AppUpdateCheckResult,
+  AppUpdateDownloadProgress,
+  AppUpdateState
+} from '../../../shared/contracts'
 import { useEditorStore } from '@/store/editor-store'
 
 export interface UpdateCheckViewState {
@@ -10,6 +14,7 @@ export interface UpdateCheckViewState {
 
 interface UseAppUpdaterResult {
   updateState: AppUpdateState | null
+  downloadProgress: AppUpdateDownloadProgress | null
   currentVersion: string | null
   checkState: UpdateCheckViewState
   dirtyCount: number
@@ -66,6 +71,8 @@ async function saveDirtyDocuments(): Promise<boolean> {
 export function useAppUpdater(): UseAppUpdaterResult {
   // Actionable update state drives the titlebar entry and detail dialog.
   const [updateState, setUpdateState] = useState<AppUpdateState | null>(null)
+  // Download progress drives the temporary non-interactive titlebar indicator.
+  const [downloadProgress, setDownloadProgress] = useState<AppUpdateDownloadProgress | null>(null)
   // Dialog visibility remains local to the application shell.
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   // Working state prevents duplicate download or restart requests.
@@ -154,8 +161,14 @@ export function useAppUpdater(): UseAppUpdaterResult {
     }
     // Subscription captures future updates while the query recovers earlier events.
     const unsubscribe = window.api.updater.onStateChanged(applyUpdateState)
+    // Progress subscription captures automatic downloads while the query recovers earlier events.
+    const unsubscribeDownloadProgress =
+      window.api.updater.onDownloadProgressChanged(setDownloadProgress)
     void window.api.updater.getState().then((state) => {
       if (mounted && state) setUpdateState(state)
+    })
+    void window.api.updater.getDownloadProgress().then((progress) => {
+      if (mounted) setDownloadProgress(progress)
     })
     void window.api.app.getVersion().then((version) => {
       if (mounted) setCurrentVersion(version)
@@ -163,6 +176,7 @@ export function useAppUpdater(): UseAppUpdaterResult {
     return () => {
       mounted = false
       unsubscribe()
+      unsubscribeDownloadProgress()
     }
   }, [])
 
@@ -180,6 +194,7 @@ export function useAppUpdater(): UseAppUpdaterResult {
 
   return {
     updateState,
+    downloadProgress,
     currentVersion,
     checkState,
     dirtyCount,

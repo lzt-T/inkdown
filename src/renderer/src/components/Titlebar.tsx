@@ -14,7 +14,7 @@ import {
   Square,
   X
 } from 'lucide-react'
-import type { AppUpdateState } from '../../../shared/contracts'
+import type { AppUpdateDownloadProgress, AppUpdateState } from '../../../shared/contracts'
 import inkdownLogo from '@/assets/inkdown-logo.png'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -28,9 +28,15 @@ const UPDATE_ACTION_LABELS: Record<AppUpdateState['action'], string> = {
   install: '安装已下载更新'
 }
 
+// Progress ring radius leaves room for the stroke inside its view box.
+const DOWNLOAD_PROGRESS_RADIUS = 8
+// Progress ring circumference converts a percentage into an SVG dash offset.
+const DOWNLOAD_PROGRESS_CIRCUMFERENCE = 2 * Math.PI * DOWNLOAD_PROGRESS_RADIUS
+
 interface TitlebarProps {
   isSettingsOpen: boolean
   updateState: AppUpdateState | null
+  downloadProgress: AppUpdateDownloadProgress | null
   onOpenSettings: () => void
   onReturnToEditor: () => void
   onOpenUpdate: () => void
@@ -42,7 +48,43 @@ interface TitlebarActionProps {
   className?: string
   disabled?: boolean
   isActive?: boolean
-  onClick: () => void
+  onClick?: () => void
+}
+
+interface DownloadProgressIconProps {
+  percent: number
+}
+
+/** Renders download progress as a compact circular titlebar indicator. */
+function DownloadProgressIcon({ percent }: DownloadProgressIconProps): React.JSX.Element {
+  // Dash offset reveals the completed portion clockwise from the top.
+  const dashOffset = DOWNLOAD_PROGRESS_CIRCUMFERENCE * (1 - percent / 100)
+
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" className="size-4 -rotate-90">
+      <circle
+        cx="10"
+        cy="10"
+        r={DOWNLOAD_PROGRESS_RADIUS}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="opacity-20"
+      />
+      <circle
+        cx="10"
+        cy="10"
+        r={DOWNLOAD_PROGRESS_RADIUS}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeDasharray={DOWNLOAD_PROGRESS_CIRCUMFERENCE}
+        strokeDashoffset={dashOffset}
+        className="transition-[stroke-dashoffset] duration-300"
+      />
+    </svg>
+  )
 }
 
 /** Renders one labeled titlebar action with consistent interaction states. */
@@ -87,6 +129,7 @@ function TitlebarAction({
 export function Titlebar({
   isSettingsOpen,
   updateState,
+  downloadProgress,
   onOpenSettings,
   onReturnToEditor,
   onOpenUpdate
@@ -191,7 +234,15 @@ export function Titlebar({
         <TitlebarAction label="切换源码模式" isActive={mode === 'source'} onClick={toggleMode}>
           <Code2 />
         </TitlebarAction>
-        {updateState && (
+        {downloadProgress ? (
+          <TitlebarAction
+            label={`正在下载 ${downloadProgress.percent}%`}
+            className="text-primary disabled:opacity-100"
+            disabled
+          >
+            <DownloadProgressIcon percent={downloadProgress.percent} />
+          </TitlebarAction>
+        ) : updateState ? (
           <TitlebarAction
             label={UPDATE_ACTION_LABELS[updateState.action]}
             className="relative text-primary hover:text-primary"
@@ -200,7 +251,7 @@ export function Titlebar({
             <Download />
             <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary ring-2 ring-panel" />
           </TitlebarAction>
-        )}
+        ) : null}
         <Separator orientation="vertical" className="mx-1.5 h-4" />
         <TitlebarAction
           label={isSettingsOpen ? '返回编辑器' : '打开设置'}

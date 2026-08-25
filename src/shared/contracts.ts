@@ -95,6 +95,11 @@ export interface AppUpdateState {
   action: 'download' | 'install'
 }
 
+export interface AppUpdateDownloadProgress {
+  version: string
+  percent: number
+}
+
 export interface AppUpdateCheckResult {
   status: 'available' | 'up-to-date' | 'unavailable'
   version: string | null
@@ -152,6 +157,8 @@ export const IPC_CHANNELS = {
   appOpenFilesRequested: 'app:open-files-requested',
   updaterStateGet: 'updater:state-get',
   updaterStateChanged: 'updater:state-changed',
+  updaterDownloadProgressGet: 'updater:download-progress-get',
+  updaterDownloadProgressChanged: 'updater:download-progress-changed',
   updaterCheck: 'updater:check',
   updaterOpenDownload: 'updater:open-download',
   updaterInstall: 'updater:install'
