@@ -148,6 +148,8 @@ export const IPC_CHANNELS = {
   recentChanged: 'recent:changed',
   dirtyCountChanged: 'app:dirty-count-changed',
   appVersionGet: 'app:version-get',
+  appTakeOpenFilePaths: 'app:take-open-file-paths',
+  appOpenFilesRequested: 'app:open-files-requested',
   updaterStateGet: 'updater:state-get',
   updaterStateChanged: 'updater:state-changed',
   updaterCheck: 'updater:check',

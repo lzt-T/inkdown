@@ -88,6 +88,24 @@ function App(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
+    /** 打开主进程当前队列中的全部文件。 */
+    const openPendingFiles = async (): Promise<void> => {
+      // 待打开路径通过一次原子读取从主进程队列中移除。
+      const paths = await window.api.app.takeOpenFilePaths()
+      if (paths.length === 0) return
+      setActiveSurface('editor')
+      // 当前 Store 快照复用现有的按路径打开文档行为。
+      const store = useEditorStore.getState()
+      for (const path of paths) await store.openPath(path)
+    }
+
+    // 先订阅再执行首次读取，避免遗漏系统打开请求。
+    const unsubscribe = window.api.app.onOpenFilesRequested(() => void openPendingFiles())
+    void openPendingFiles()
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
     return window.api.menu.onAction((action) => {
       // Current store snapshot routes native menu commands.
       const store = useEditorStore.getState()

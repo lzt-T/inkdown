@@ -1,10 +1,11 @@
 import { app, shell, BrowserWindow, dialog, ipcMain, net, protocol } from 'electron'
-import { join, resolve } from 'path'
+import { extname, join, resolve } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import {
   IPC_CHANNELS,
+  MARKDOWN_EXTENSIONS,
   type ConfigureGitHubImageStorageRequest,
   type FileNode,
   type ImportImageRequest,
@@ -59,6 +60,32 @@ let mainWindow: BrowserWindow | null = null
 let dirtyCount = 0
 // Update installation bypasses the normal close confirmation after explicit consent.
 let isInstallingUpdate = false
+// 待打开路径用于将系统打开请求传递给已挂载的渲染进程。
+const pendingOpenFilePaths: string[] = []
+
+/** 从应用命令行中提取支持的 Markdown 文件路径。 */
+function getMarkdownFilePaths(commandLine: string[]): string[] {
+  return commandLine
+    .filter((argument) => MARKDOWN_EXTENSIONS.has(extname(argument).slice(1).toLowerCase()))
+    .map((argument) => resolve(argument))
+}
+
+/** 将 Markdown 路径加入队列，并在窗口存在时通知渲染进程。 */
+function queueOpenFilePaths(paths: string[]): void {
+  // 新路径保持调用顺序，同时避免重复加入同一个待处理请求。
+  const nextPaths = paths.filter((path) => !pendingOpenFilePaths.includes(path))
+  if (nextPaths.length === 0) return
+  pendingOpenFilePaths.push(...nextPaths)
+  sendToRenderer(IPC_CHANNELS.appOpenFilesRequested)
+}
+
+/** 恢复并聚焦现有应用窗口。 */
+function focusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
 
 function getWindow(): BrowserWindow {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('主窗口不可用')
@@ -299,6 +326,7 @@ function registerIpcHandlers(): void {
     dirtyCount = Math.max(0, Number(count) || 0)
   })
   ipcMain.handle(IPC_CHANNELS.appVersionGet, () => app.getVersion())
+  ipcMain.handle(IPC_CHANNELS.appTakeOpenFilePaths, () => pendingOpenFilePaths.splice(0))
 }
 
 function saveWindowBounds(): void {
@@ -380,7 +408,28 @@ async function createWindow(): Promise<void> {
   }
 }
 
+// 单实例锁确保后续系统打开请求进入现有编辑器窗口。
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  queueOpenFilePaths(getMarkdownFilePaths(process.argv))
+
+  app.on('second-instance', (_event, commandLine) => {
+    queueOpenFilePaths(getMarkdownFilePaths(commandLine))
+    focusMainWindow()
+  })
+
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault()
+    queueOpenFilePaths(getMarkdownFilePaths([filePath]))
+    focusMainWindow()
+  })
+}
+
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return
   electronApp.setAppUserModelId('com.inkdown.app')
   registerProtocolHandler()
   registerIpcHandlers()

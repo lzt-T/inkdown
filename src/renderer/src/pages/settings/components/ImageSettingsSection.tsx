@@ -219,7 +219,7 @@ export function ImageSettingsSection(): React.JSX.Element {
                   disabled={isSaving}
                   aria-invalid={Boolean(relativeDirectoryError)}
                   aria-describedby="relative-image-directory-help"
-                  className="mt-2 max-w-xl"
+                  className="mt-2 block max-w-xl"
                   placeholder="assets"
                   onChange={(event) => {
                     setRelativeDirectory(event.target.value)

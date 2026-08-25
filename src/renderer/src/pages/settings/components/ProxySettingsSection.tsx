@@ -89,7 +89,7 @@ export function ProxySettingsSection(): React.JSX.Element {
       <div className="mt-7">
         <h3 className="text-sm font-medium text-foreground">代理模式</h3>
         {proxy ? (
-          <div className="mt-3 space-y-5">
+          <div className="mt-3 flex flex-col items-start gap-5">
             <div
               role="group"
               aria-label="代理模式"
@@ -122,7 +122,7 @@ export function ProxySettingsSection(): React.JSX.Element {
             </div>
 
             {mode === 'manual' && (
-              <div className="max-w-2xl border-y py-5">
+              <div className="w-full max-w-2xl border-y py-5">
                 <div>
                   <label htmlFor="proxy-server" className="text-sm font-medium text-foreground">
                     代理服务器

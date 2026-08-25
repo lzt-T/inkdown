@@ -1,5 +1,13 @@
 appId: com.inkdown.app
 productName: Inkdown
+fileAssociations:
+  - ext:
+      - md
+      - markdown
+    name: Markdown Document
+    description: Markdown document
+    role: Editor
+    mimeType: text/markdown
 publish:
   provider: github
   owner: lzt-T

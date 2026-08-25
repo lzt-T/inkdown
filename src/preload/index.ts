@@ -94,7 +94,19 @@ const api = {
   },
   app: {
     setDirtyCount: (count: number) => ipcRenderer.send(IPC_CHANNELS.dirtyCountChanged, count),
-    getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.appVersionGet) as Promise<string>
+    getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.appVersionGet) as Promise<string>,
+    /** 获取并清空系统打开请求所排队的文件路径。 */
+    takeOpenFilePaths: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.appTakeOpenFilePaths) as Promise<string[]>,
+    /** 订阅系统发起的 Markdown 文件打开请求。 */
+    onOpenFilesRequested: (callback: () => void) => {
+      /** 将待打开文件通知转发给渲染进程回调。 */
+      const listener = (): void => callback()
+      ipcRenderer.on(IPC_CHANNELS.appOpenFilesRequested, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.appOpenFilesRequested, listener)
+      }
+    }
   },
   updater: {
     getState: () =>
