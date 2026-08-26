@@ -13,6 +13,12 @@ import {
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
 
+// 当前标签背景与对应编辑模式的正文表面保持一致。
+const ACTIVE_TAB_BACKGROUND = {
+  wysiwyg: 'bg-card',
+  source: 'bg-background'
+} as const
+
 /** Renders open documents as a compact editorial tab index. */
 export function TabsBar(): React.JSX.Element | null {
   // Open documents provide tab labels and dirty state.
@@ -21,6 +27,8 @@ export function TabsBar(): React.JSX.Element | null {
   const tabOrder = useEditorStore((state) => state.tabOrder)
   // Active key selects the current document tab.
   const activeKey = useEditorStore((state) => state.activeKey)
+  // 编辑模式决定当前标签使用的正文背景。
+  const mode = useEditorStore((state) => state.mode)
   // Tab activation switches the editor document.
   const activateTab = useEditorStore((state) => state.activateTab)
   // Close action removes a document after confirmation when needed.
@@ -44,11 +52,11 @@ export function TabsBar(): React.JSX.Element | null {
 
   return (
     <>
-      <div className="flex h-9 shrink-0 border-b bg-panel px-1.5">
+      <div className="relative flex h-9 shrink-0 items-end bg-panel px-1.5 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:h-px before:bg-border">
         <div
           role="tablist"
           aria-label="打开的文档"
-          className="inkdown-tabs-scroll flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+          className="inkdown-tabs-scroll flex min-w-0 flex-1 items-end gap-1 overflow-x-auto overflow-y-hidden"
         >
           {tabOrder.map((key) => {
             // Document data populates one tab.
@@ -61,7 +69,7 @@ export function TabsBar(): React.JSX.Element | null {
             return (
               <div
                 key={key}
-                className="group relative flex h-8 min-w-28 max-w-48 shrink-0 items-center border-r border-border/70"
+                className="group relative flex h-8 min-w-28 max-w-48 shrink-0 items-center"
               >
                 <button
                   type="button"
@@ -69,10 +77,13 @@ export function TabsBar(): React.JSX.Element | null {
                   aria-selected={isActive}
                   onClick={() => activateTab(key)}
                   className={cn(
-                    'relative flex h-full min-w-0 flex-1 items-center gap-2 px-3 pr-8 text-left text-xs outline-none transition-colors focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+                    'relative flex h-full min-w-0 flex-1 items-center gap-2 px-3 pr-8 text-left text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
                     isActive
-                      ? 'bg-background font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:bg-primary'
-                      : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground'
+                      ? cn(
+                          'z-10 rounded-t-lg border border-b-0 border-border font-medium text-foreground',
+                          ACTIVE_TAB_BACKGROUND[mode]
+                        )
+                      : 'rounded-md text-muted-foreground hover:bg-accent/70 hover:text-foreground'
                   )}
                   title={doc.diskPath ?? doc.name}
                 >
@@ -84,7 +95,7 @@ export function TabsBar(): React.JSX.Element | null {
                   aria-label={`关闭 ${doc.name}`}
                   title={`关闭 ${doc.name}`}
                   className={cn(
-                    'absolute right-1 flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-[color,background-color,opacity] hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60 group-hover:opacity-100',
+                    'absolute right-1 z-20 flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-[color,background-color,opacity] hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60 group-hover:opacity-100',
                     isActive && 'opacity-100'
                   )}
                   onClick={(event) => {
