@@ -5,7 +5,6 @@ import {
   FilePlus,
   FileText,
   FolderOpen,
-  ListTree,
   Minus,
   PanelLeftClose,
   PanelLeftOpen,
@@ -139,10 +138,8 @@ export function Titlebar({
     activeKey,
     openDocs,
     sidebarOpen,
-    outlineOpen,
     mode,
     toggleSidebar,
-    toggleOutline,
     toggleMode,
     newUntitled,
     openWorkspace,
@@ -202,7 +199,7 @@ export function Titlebar({
           className="pointer-events-none mx-0.5 size-4.5 shrink-0 select-none opacity"
         />
         <Separator orientation="vertical" className="mx-1 h-4" />
-        <TitlebarAction label="切换文件树" isActive={sidebarOpen} onClick={toggleSidebar}>
+        <TitlebarAction label="切换侧栏" isActive={sidebarOpen} onClick={toggleSidebar}>
           {sidebarOpen ? <PanelLeftOpen /> : <PanelLeftClose />}
         </TitlebarAction>
         <Separator orientation="vertical" className="mx-1.5 h-4" />
@@ -228,9 +225,6 @@ export function Titlebar({
       </div>
 
       <div className="flex items-center gap-0.5">
-        <TitlebarAction label="切换大纲" isActive={outlineOpen} onClick={toggleOutline}>
-          <ListTree />
-        </TitlebarAction>
         <TitlebarAction label="切换源码模式" isActive={mode === 'source'} onClick={toggleMode}>
           <Code2 />
         </TitlebarAction>

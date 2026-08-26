@@ -26,6 +26,8 @@ export interface OpenDocument {
   saving: boolean
 }
 
+type SidebarView = 'files' | 'outline'
+
 interface EditorStore {
   workspaceRoot: string | null
   treeNodes: Record<string, FileNode[]>
@@ -36,7 +38,7 @@ interface EditorStore {
   mode: EditorMode
   theme: ThemeMode
   sidebarOpen: boolean
-  outlineOpen: boolean
+  sidebarView: SidebarView
   recent: RecentState
   activeHeading: number
   headingTarget: { index: number; nonce: number } | null
@@ -46,6 +48,7 @@ interface EditorStore {
   setMode: (mode: EditorMode) => void
   toggleMode: () => void
   toggleSidebar: () => void
+  setSidebarView: (view: SidebarView) => void
   toggleOutline: () => void
   setRecent: (recent: RecentState) => void
   setActiveHeading: (index: number) => void
@@ -111,9 +114,25 @@ function untitledDocument(): OpenDocument {
 }
 
 const storedTheme = (localStorage.getItem('inkdown.theme') as ThemeMode | null) ?? 'light'
-const storedSidebar = localStorage.getItem('inkdown.sidebar') !== '0'
-const storedOutline = localStorage.getItem('inkdown.outline') !== '0'
+// 新版页签键区分迁移后的状态与旧版双面板状态。
+const storedSidebarViewValue = localStorage.getItem('inkdown.sidebar-view')
+// 合法的新版页签值用于恢复侧栏最后一次选择。
+const storedSidebarView =
+  storedSidebarViewValue === 'files' || storedSidebarViewValue === 'outline'
+    ? storedSidebarViewValue
+    : null
+// 旧版文件树开关兼作新版侧栏总开关。
+const storedSidebarOpen = localStorage.getItem('inkdown.sidebar') !== '0'
+// 旧版大纲开关用于首次迁移时确定默认页签。
+const storedOutlineOpen = localStorage.getItem('inkdown.outline') !== '0'
 const documentSaveQueues = new Map<string, Promise<boolean>>()
+
+/** 持久化侧栏开关、当前页签及旧版大纲兼容状态。 */
+function persistSidebarState(sidebarOpen: boolean, sidebarView: SidebarView): void {
+  localStorage.setItem('inkdown.sidebar', sidebarOpen ? '1' : '0')
+  localStorage.setItem('inkdown.outline', sidebarOpen && sidebarView === 'outline' ? '1' : '0')
+  localStorage.setItem('inkdown.sidebar-view', sidebarView)
+}
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   workspaceRoot: null,
@@ -124,8 +143,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activeKey: null,
   mode: 'wysiwyg',
   theme: storedTheme,
-  sidebarOpen: storedSidebar,
-  outlineOpen: storedOutline,
+  sidebarOpen: storedSidebarView ? storedSidebarOpen : storedSidebarOpen || storedOutlineOpen,
+  sidebarView: storedSidebarView ?? (storedOutlineOpen ? 'outline' : 'files'),
   recent: { workspaces: [], files: [], lastWorkspace: null },
   activeHeading: 0,
   headingTarget: null,
@@ -141,14 +160,24 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setMode: (mode) => set({ mode }),
   toggleMode: () => set({ mode: get().mode === 'wysiwyg' ? 'source' : 'wysiwyg' }),
   toggleSidebar: () => {
-    const next = !get().sidebarOpen
-    localStorage.setItem('inkdown.sidebar', next ? '1' : '0')
-    set({ sidebarOpen: next })
+    // 当前页签在侧栏开关过程中保持不变。
+    const { sidebarOpen, sidebarView } = get()
+    // 新开关状态直接取反当前侧栏可见性。
+    const nextSidebarOpen = !sidebarOpen
+    persistSidebarState(nextSidebarOpen, sidebarView)
+    set({ sidebarOpen: nextSidebarOpen })
+  },
+  setSidebarView: (sidebarView) => {
+    persistSidebarState(true, sidebarView)
+    set({ sidebarOpen: true, sidebarView })
   },
   toggleOutline: () => {
-    const next = !get().outlineOpen
-    localStorage.setItem('inkdown.outline', next ? '1' : '0')
-    set({ outlineOpen: next })
+    // 已打开的大纲再次触发时关闭侧栏，其他状态则直接显示大纲。
+    const { sidebarOpen, sidebarView } = get()
+    // 大纲处于当前可见页签时才执行关闭。
+    const nextSidebarOpen = !(sidebarOpen && sidebarView === 'outline')
+    persistSidebarState(nextSidebarOpen, 'outline')
+    set({ sidebarOpen: nextSidebarOpen, sidebarView: 'outline' })
   },
   setRecent: (recent) => set({ recent }),
   setActiveHeading: (activeHeading) => set({ activeHeading }),

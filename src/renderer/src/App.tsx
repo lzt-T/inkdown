@@ -15,6 +15,12 @@ import { useEditorStore } from '@/store/editor-store'
 
 type AppSurface = 'editor' | 'settings'
 
+// 固定页签配置集中定义侧栏视图与显示文案。
+const SIDEBAR_TABS = [
+  { value: 'files', label: '文件' },
+  { value: 'outline', label: '大纲' }
+] as const
+
 /** Coordinates the application shell, editor workspace, and settings surface. */
 function App(): React.JSX.Element {
   // Shell-local navigation preserves editor state without expanding the shared store.
@@ -23,8 +29,10 @@ function App(): React.JSX.Element {
   const theme = useEditorStore((state) => state.theme)
   // Panel visibility remains shared editor state.
   const sidebarOpen = useEditorStore((state) => state.sidebarOpen)
-  // Outline visibility remains shared editor state.
-  const outlineOpen = useEditorStore((state) => state.outlineOpen)
+  // 当前侧栏页签决定显示文件树或文档大纲。
+  const sidebarView = useEditorStore((state) => state.sidebarView)
+  // 页签操作同时打开侧栏并持久化当前选择。
+  const setSidebarView = useEditorStore((state) => state.setSidebarView)
   // Active document key selects document-specific shell data.
   const activeKey = useEditorStore((state) => state.activeKey)
   // Active Markdown drives outline parsing and autosave.
@@ -188,8 +196,48 @@ function App(): React.JSX.Element {
           <Group orientation="horizontal" id="inkdown.panels" className="flex min-w-0 flex-1">
             {sidebarOpen && (
               <>
-                <Panel defaultSize={240} minSize={200} maxSize={360} className="bg-panel">
-                  <FileTree />
+                <Panel defaultSize={260} minSize={220} maxSize={380} className="bg-panel">
+                  <div className="flex h-full flex-col">
+                    <div
+                      role="tablist"
+                      aria-label="侧栏导航"
+                      className="flex h-9 shrink-0 items-center gap-1 border-b p-1"
+                    >
+                      {SIDEBAR_TABS.map((tab) => {
+                        // 当前页签状态控制选中样式和无障碍属性。
+                        const isSelected = sidebarView === tab.value
+                        return (
+                          <button
+                            key={tab.value}
+                            id={`sidebar-tab-${tab.value}`}
+                            type="button"
+                            role="tab"
+                            aria-selected={isSelected}
+                            aria-controls={`sidebar-panel-${tab.value}`}
+                            className={cn(
+                              'flex h-7 flex-1 items-center justify-center rounded-sm px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+                              isSelected && 'bg-selected text-primary'
+                            )}
+                            onClick={() => setSidebarView(tab.value)}
+                          >
+                            {tab.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div
+                      id={`sidebar-panel-${sidebarView}`}
+                      role="tabpanel"
+                      aria-labelledby={`sidebar-tab-${sidebarView}`}
+                      className="min-h-0 flex-1"
+                    >
+                      {sidebarView === 'files' ? (
+                        <FileTree />
+                      ) : (
+                        <OutlinePanel documentKey={activeKey} items={outlineItems} />
+                      )}
+                    </div>
+                  </div>
                 </Panel>
                 <Separator className="w-px bg-border transition-colors hover:bg-primary/60" />
               </>
@@ -197,14 +245,6 @@ function App(): React.JSX.Element {
             <Panel minSize={360} className="min-w-0">
               <EditorPane />
             </Panel>
-            {outlineOpen && (
-              <>
-                <Separator className="w-px bg-border transition-colors hover:bg-primary/60" />
-                <Panel defaultSize={260} minSize={220} maxSize={380} className="bg-panel">
-                  <OutlinePanel documentKey={activeKey} items={outlineItems} />
-                </Panel>
-              </>
-            )}
           </Group>
         </div>
         {isSettingsOpen && (

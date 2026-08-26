@@ -92,7 +92,7 @@ function labelFor(action: MenuAction): string {
     save: '保存',
     'save-as': '另存为',
     'close-tab': '关闭标签页',
-    'toggle-sidebar': '切换文件树',
+    'toggle-sidebar': '切换侧栏',
     'toggle-outline': '切换大纲',
     'toggle-source': '切换源码模式',
     'toggle-theme': '切换主题'

@@ -67,9 +67,9 @@ function OutlineTreeItem({
           aria-current={isActive ? 'location' : undefined}
           onClick={() => onSelect(node.index)}
           className={cn(
-            'relative flex h-full min-w-0 flex-1 items-center rounded-sm px-1.5 text-left text-[13px] text-muted-foreground outline-none transition-colors before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-transparent hover:bg-accent/70 hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+            'flex h-full min-w-0 flex-1 items-center rounded-sm px-1.5 text-left text-[13px] text-muted-foreground outline-none transition-colors hover:bg-accent/70 hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
             depth === 0 && 'font-medium text-panel-foreground',
-            isActive && 'bg-selected text-foreground before:bg-primary'
+            isActive && 'font-semibold text-primary'
           )}
           title={node.text}
         >
@@ -156,7 +156,7 @@ export function OutlinePanel({ documentKey, items }: OutlinePanelProps): React.J
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-9 shrink-0 items-center justify-between border-b px-3 text-xs font-semibold text-panel-foreground">
-        <span>大纲</span>
+        <span>当前文档</span>
         <span className="font-normal tabular-nums text-muted-foreground">{items.length} 项</span>
       </div>
       <div className="relative flex-1 overflow-auto py-2">
