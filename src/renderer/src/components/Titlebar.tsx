@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Code2,
   Download,
@@ -47,6 +47,7 @@ interface TitlebarActionProps {
   className?: string
   disabled?: boolean
   isActive?: boolean
+  suppressHoverAfterClick?: boolean
   onClick?: () => void
 }
 
@@ -93,11 +94,46 @@ function TitlebarAction({
   className,
   disabled,
   isActive,
+  suppressHoverAfterClick,
   onClick
 }: TitlebarActionProps): React.JSX.Element {
+  // 受控状态确保窗口隐藏前能够主动关闭提示。
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false)
+  // 最小化恢复前隐藏由静止指针保留的悬停背景。
+  const [isHoverSuppressed, setIsHoverSuppressed] = useState(false)
+  // 点击位置用于阻止窗口恢复时由同一指针位置重新打开提示。
+  const suppressedPointerPosition = useRef<{ x: number; y: number } | null>(null)
+
+  /** 根据当前指针抑制状态同步提示的打开状态。 */
+  const handleTooltipOpenChange = (open: boolean): void => {
+    if (open && suppressedPointerPosition.current) return
+    setIsTooltipOpen(open)
+  }
+
+  /** 在用户真实移动指针后恢复提示的悬停行为。 */
+  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>): void => {
+    // 当前抑制位置为空时无需比较指针坐标。
+    const position = suppressedPointerPosition.current
+    if (!position) return
+    if (event.screenX === position.x && event.screenY === position.y) return
+    suppressedPointerPosition.current = null
+    setIsHoverSuppressed(false)
+  }
+
+  /** 关闭当前提示后执行标题栏动作。 */
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    // 键盘触发的点击没有鼠标点击次数，不应抑制后续焦点提示。
+    const isPointerClick = event.detail > 0
+    suppressedPointerPosition.current =
+      isPointerClick ? { x: event.screenX, y: event.screenY } : null
+    setIsHoverSuppressed(Boolean(suppressHoverAfterClick && isPointerClick))
+    setIsTooltipOpen(false)
+    onClick?.()
+  }
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
+      <TooltipTrigger asChild onPointerMove={handlePointerMove}>
         <span className="app-no-drag inline-flex">
           <Button
             type="button"
@@ -109,9 +145,10 @@ function TitlebarAction({
             className={cn(
               'h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:translate-y-px active:bg-selected',
               isActive && 'bg-selected text-primary',
-              className
+              className,
+              isHoverSuppressed && 'hover:bg-transparent dark:hover:bg-transparent'
             )}
-            onClick={onClick}
+            onClick={handleClick}
           >
             {children}
           </Button>
@@ -258,7 +295,11 @@ export function Titlebar({
         {!isMac && (
           <>
             <Separator orientation="vertical" className="mx-1 h-4" />
-            <TitlebarAction label="最小化" onClick={() => void window.api.window.minimize()}>
+            <TitlebarAction
+              label="最小化"
+              suppressHoverAfterClick
+              onClick={() => void window.api.window.minimize()}
+            >
               <Minus />
             </TitlebarAction>
             <TitlebarAction
