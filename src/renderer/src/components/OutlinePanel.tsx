@@ -155,7 +155,7 @@ export function OutlinePanel({ documentKey, items }: OutlinePanelProps): React.J
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-9 shrink-0 items-center justify-between border-b px-3 text-xs font-semibold text-panel-foreground">
+      <div className="flex h-8 shrink-0 items-center justify-between px-3 text-xs font-medium text-panel-foreground">
         <span>当前文档</span>
         <span className="font-normal tabular-nums text-muted-foreground">{items.length} 项</span>
       </div>

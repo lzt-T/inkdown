@@ -201,7 +201,7 @@ function App(): React.JSX.Element {
                     <div
                       role="tablist"
                       aria-label="侧栏导航"
-                      className="flex h-9 shrink-0 items-center gap-1 border-b p-1"
+                      className="flex h-9 shrink-0 items-center border-b px-2"
                     >
                       {SIDEBAR_TABS.map((tab) => {
                         // 当前页签状态控制选中样式和无障碍属性。
@@ -215,8 +215,8 @@ function App(): React.JSX.Element {
                             aria-selected={isSelected}
                             aria-controls={`sidebar-panel-${tab.value}`}
                             className={cn(
-                              'flex h-7 flex-1 items-center justify-center rounded-sm px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
-                              isSelected && 'bg-selected text-primary'
+                              'relative flex h-full flex-1 items-center justify-center px-2 text-xs font-medium text-muted-foreground outline-none transition-colors after:absolute after:bottom-0 after:left-1/2 after:h-0.5 after:w-8 after:-translate-x-1/2 after:bg-transparent hover:bg-accent/60 hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+                              isSelected && 'font-semibold text-primary after:bg-primary'
                             )}
                             onClick={() => setSidebarView(tab.value)}
                           >

@@ -51,10 +51,10 @@ export function FileTree(): React.JSX.Element {
   return (
     <div className="flex h-full flex-col">
       <div
-        className="flex h-9 shrink-0 items-center gap-2 border-b px-3 text-xs font-semibold text-panel-foreground"
+        className="flex h-8 shrink-0 items-center gap-1.5 px-3 text-xs font-medium text-panel-foreground"
         title={workspaceRoot}
       >
-        <FolderOpen className="size-3.5 shrink-0 text-primary" />
+        <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="truncate">{workspaceName}</span>
       </div>
       <div className="flex-1 overflow-auto py-1.5">
@@ -137,8 +137,8 @@ function TreeNode({
         <ContextMenuTrigger asChild>
           <button
             className={cn(
-              'group relative flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-panel-foreground outline-none transition-colors before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-transparent hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
-              active && 'bg-selected/70 font-medium text-foreground before:bg-primary'
+              'group relative flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-panel-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+              active && 'font-semibold text-primary'
             )}
             style={{ paddingLeft: 10 + depth * 14 }}
             onClick={handleOpen}
