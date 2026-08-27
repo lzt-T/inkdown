@@ -142,8 +142,8 @@ importers:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)
       zt-react-milkdown:
-        specifier: ^0.1.25
-        version: 0.1.25(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
+        specifier: ^0.1.26
+        version: 0.1.26(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
       zustand:
         specifier: ^5.0.15
         version: 5.0.15(@types/react@19.2.18)(react@19.2.8)
@@ -5274,8 +5274,8 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
-  zt-react-milkdown@0.1.25:
-    resolution: {integrity: sha512-sAKK2ja4ZP1mLeV9ScuIBoVuWRbaSSNquqbO+zgRjOX0m6LwTAixjTdDC/Gu5I5XsOru8bb9vckMhkmUqCU+6A==}
+  zt-react-milkdown@0.1.26:
+    resolution: {integrity: sha512-jey2hgahM7N1LjoqMuOxQWfyYe7tI4Rc/Abo2wjTHSRdQQDmlllDeCS69X2s7E60TR0hfIk37ukGg6rHjqyz+g==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -11540,7 +11540,7 @@ snapshots:
 
   zod@4.4.3: {}
 
-  zt-react-milkdown@0.1.25(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)):
+  zt-react-milkdown@0.1.26(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)):
     dependencies:
       '@fontsource-variable/geist': 5.3.0
       '@milkdown/core': 7.22.1
