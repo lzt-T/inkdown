@@ -142,4 +142,3 @@ export function TabsBar(): React.JSX.Element | null {
     </>
   )
 }
-

@@ -120,7 +120,7 @@ export function SettingsPage({
                       'relative block h-28 overflow-hidden rounded-md border',
                       option.value === 'light'
                         ? 'border-[#d4dde9] bg-[#f6f8fc]'
-                        : 'border-[#2f4366] bg-[#0c1220]'
+                        : 'border-[#303036] bg-[#09090b]'
                     )}
                   >
                     <span
@@ -128,7 +128,7 @@ export function SettingsPage({
                         'absolute inset-x-0 top-0 h-5 border-b',
                         option.value === 'light'
                           ? 'border-[#d4dde9] bg-white'
-                          : 'border-[#2f4366] bg-[#131d31]'
+                          : 'border-[#303036] bg-[#18181b]'
                       )}
                     />
                     <span
@@ -136,19 +136,19 @@ export function SettingsPage({
                         'absolute bottom-0 left-0 top-5 w-12 border-r',
                         option.value === 'light'
                           ? 'border-[#d4dde9] bg-[#f2f5fb]'
-                          : 'border-[#2f4366] bg-[#131d31]'
+                          : 'border-[#303036] bg-[#18181b]'
                       )}
                     />
                     <span
                       className={cn(
                         'absolute left-[4.5rem] top-10 h-2 w-20 rounded-full',
-                        option.value === 'light' ? 'bg-[#162336]' : 'bg-[#e8efff]'
+                        option.value === 'light' ? 'bg-[#162336]' : 'bg-[#f4f4f5]'
                       )}
                     />
                     <span
                       className={cn(
                         'absolute left-[4.5rem] top-16 h-1.5 w-28 rounded-full',
-                        option.value === 'light' ? 'bg-[#5e7087]' : 'bg-[#93a7c3]'
+                        option.value === 'light' ? 'bg-[#5e7087]' : 'bg-[#a1a1aa]'
                       )}
                     />
                   </span>

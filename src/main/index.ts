@@ -348,7 +348,7 @@ async function createWindow(): Promise<void> {
     minHeight: 640,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: state.theme === 'dark' ? '#0c1220' : '#f6f8fc',
+    backgroundColor: state.theme === 'dark' ? '#09090b' : '#f6f8fc',
     ...(isMac ? { titleBarStyle: 'hiddenInset' as const } : { frame: false }),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
