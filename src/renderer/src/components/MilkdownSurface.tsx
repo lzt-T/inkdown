@@ -176,7 +176,11 @@ export function MilkdownSurface({
   }, [value, theme, onActiveHeadingChange])
 
   return (
-    <div ref={containerRef} className="inkdown-editor-surface min-h-0 flex-1 overflow-hidden">
+    <div
+      ref={containerRef}
+      spellCheck={false}
+      className="inkdown-editor-surface min-h-0 flex-1 overflow-hidden"
+    >
       <MilkdownEditor
         value={value}
         onChange={onChange}
