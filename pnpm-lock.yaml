@@ -142,8 +142,8 @@ importers:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)
       zt-react-milkdown:
-        specifier: ^0.1.27
-        version: 0.1.27(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
+        specifier: ^0.1.29
+        version: 0.1.29(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
       zustand:
         specifier: ^5.0.15
         version: 5.0.15(@types/react@19.2.18)(react@19.2.8)
@@ -4400,6 +4400,9 @@ packages:
   prosemirror-schema-list@1.5.1:
     resolution: {integrity: sha512-927lFx/uwyQaGwJxLWCZRkjXG0p48KpMj6ueoYiu4JX05GGuGcgzAy62dfiV8eFZftgyBUvLx76RsMe20fJl+Q==}
 
+  prosemirror-search@1.1.1:
+    resolution: {integrity: sha512-1dbxbF1YYlP9mYJnFbfdOb9+RTdFHeZ/GwgEyHD4jg9szA8EVitMCnfXUBYLmFun500FMZBkRvcV0gp5BpLw4Q==}
+
   prosemirror-state@1.4.4:
     resolution: {integrity: sha512-6jiYHH2CIGbCfnxdHbXZ12gySFY/fz/ulZE333G6bPqIZ4F+TXo9ifiR86nAHpWnfoNjOb3o5ESi7J8Uz1jXHw==}
 
@@ -5274,8 +5277,8 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
-  zt-react-milkdown@0.1.27:
-    resolution: {integrity: sha512-p5sHOgW6YaoxXAkdPoTp8O9ndUmAZX09jqO6ewfOL5cQF9dOO3k6vLti7Xh2oXndgsXtSVUHGwj05e4fVC9NMQ==}
+  zt-react-milkdown@0.1.29:
+    resolution: {integrity: sha512-W3aySb1sd0uDtIgp4AZcrXWdBh3CwytRaekuDvn/kqN1fvBKDNlbZZAO041Epfw6XkI/rzlgEvTlv2f7bZTfHw==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -10453,6 +10456,12 @@ snapshots:
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.12.0
 
+  prosemirror-search@1.1.1:
+    dependencies:
+      prosemirror-model: 1.25.11
+      prosemirror-state: 1.4.4
+      prosemirror-view: 1.42.2
+
   prosemirror-state@1.4.4:
     dependencies:
       prosemirror-model: 1.25.11
@@ -11540,7 +11549,7 @@ snapshots:
 
   zod@4.4.3: {}
 
-  zt-react-milkdown@0.1.27(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)):
+  zt-react-milkdown@0.1.29(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)):
     dependencies:
       '@fontsource-variable/geist': 5.3.0
       '@milkdown/core': 7.22.1
@@ -11564,6 +11573,7 @@ snapshots:
       i18next: 26.3.6(typescript@6.0.3)
       katex: 0.16.47
       lucide-react: 1.31.0(react@19.2.8)
+      prosemirror-search: 1.1.1
       radix-ui: 1.6.7(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
