@@ -53,7 +53,7 @@ export function installApplicationMenu(sendAction: (action: MenuAction) => void)
         { role: 'paste', accelerator: 'CmdOrCtrl+V' },
         { role: 'selectAll', accelerator: 'CmdOrCtrl+A' },
         { type: 'separator' },
-        { role: 'toggleDevTools' }
+        { role: 'toggleDevTools', accelerator: 'F12' }
       ]
     },
     {
