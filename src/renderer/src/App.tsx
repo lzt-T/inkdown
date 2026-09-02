@@ -47,6 +47,10 @@ function App(): React.JSX.Element {
   const activeDiskPath = useEditorStore((state) =>
     activeKey ? (state.openDocs[activeKey]?.diskPath ?? null) : null
   )
+  // 磁盘缺失状态暂停当前文档的自动保存。
+  const activeFileMissing = useEditorStore((state) =>
+    activeKey ? (state.openDocs[activeKey]?.isMissingOnDisk ?? false) : false
+  )
   // Settings visibility selects the active shell surface.
   const isSettingsOpen = activeSurface === 'settings'
   // Updater state coordinates notifications, titlebar access, and the detail dialog.
@@ -161,6 +165,7 @@ function App(): React.JSX.Element {
     if (
       !activeKey ||
       !activeDiskPath ||
+      activeFileMissing ||
       activeRawMarkdown === null ||
       activeRawMarkdown === activeSavedRawMarkdown
     ) {
@@ -171,7 +176,13 @@ function App(): React.JSX.Element {
       void useEditorStore.getState().saveDocument(activeKey)
     }, 800)
     return () => window.clearTimeout(timer)
-  }, [activeKey, activeDiskPath, activeRawMarkdown, activeSavedRawMarkdown])
+  }, [
+    activeKey,
+    activeDiskPath,
+    activeFileMissing,
+    activeRawMarkdown,
+    activeSavedRawMarkdown
+  ])
 
   // Parsed headings feed the outline panel for the active document.
   const outlineItems = useMemo(() => parseOutline(activeRawMarkdown ?? ''), [activeRawMarkdown])

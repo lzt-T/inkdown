@@ -52,9 +52,9 @@ async function saveDirtyDocuments(): Promise<boolean> {
       // Current document may have closed or finished saving during the flow.
       const document = store.openDocs[key]
       if (!document || document.rawMarkdown === document.savedRawMarkdown) continue
-      if (!document.diskPath) store.activateTab(key)
+      if (!document.diskPath || document.isMissingOnDisk) store.activateTab(key)
       // Existing save behavior handles both direct writes and Save As prompts.
-      const saved = await useEditorStore.getState().saveDocument(key)
+      const saved = await useEditorStore.getState().saveDocument(key, true)
       if (!saved) return false
     }
     return true

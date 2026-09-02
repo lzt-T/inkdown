@@ -19,6 +19,10 @@ export function StatusBar(): React.JSX.Element {
   const saving = useEditorStore((state) =>
     activeKey ? (state.openDocs[activeKey]?.saving ?? false) : false
   )
+  // 磁盘缺失状态提示当前缓冲区需要另存为。
+  const isMissingOnDisk = useEditorStore((state) =>
+    activeKey ? (state.openDocs[activeKey]?.isMissingOnDisk ?? false) : false
+  )
   // Disk path identifies the active file location.
   const diskPath = useEditorStore((state) =>
     activeKey ? (state.openDocs[activeKey]?.diskPath ?? null) : null
@@ -27,8 +31,14 @@ export function StatusBar(): React.JSX.Element {
   const wordCount = rawMarkdown === null ? 0 : countWords(rawMarkdown)
   // Dirty state detects unsaved content changes.
   const dirty = rawMarkdown !== null && rawMarkdown !== savedRawMarkdown
-  // Status copy prioritizes an active save over dirty state.
-  const status = saving ? '正在保存' : dirty ? '未保存' : '已保存'
+  // 状态文案优先显示进行中的保存，其次提示磁盘文件缺失。
+  const status = saving
+    ? '正在保存'
+    : isMissingOnDisk
+      ? '文件已删除'
+      : dirty
+        ? '未保存'
+        : '已保存'
 
   return (
     <footer className="flex h-6 shrink-0 items-center gap-3 border-t bg-panel px-3 text-[11px] text-muted-foreground">

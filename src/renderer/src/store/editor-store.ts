@@ -24,6 +24,7 @@ export interface OpenDocument {
   newline: '\r\n' | '\n'
   hasBom: boolean
   saving: boolean
+  isMissingOnDisk: boolean
 }
 
 type SidebarView = 'files' | 'outline'
@@ -73,7 +74,7 @@ interface EditorStore {
   closeTab: (key: string) => void
   updateActiveMarkdown: (viewMarkdown: string) => void
   updateActiveRawMarkdown: (rawMarkdown: string) => void
-  saveDocument: (key: string) => Promise<boolean>
+  saveDocument: (key: string, promptForMissingFile?: boolean) => Promise<boolean>
   saveActive: () => Promise<boolean>
   saveActiveAs: () => Promise<boolean>
   setSaving: (key: string, saving: boolean) => void
@@ -94,7 +95,8 @@ function dataToDocument(data: OpenFileData): OpenDocument {
     savedRawMarkdown: data.content,
     newline: data.newline,
     hasBom: data.hasBom,
-    saving: false
+    saving: false,
+    isMissingOnDisk: false
   }
 }
 
@@ -109,7 +111,57 @@ function untitledDocument(): OpenDocument {
     savedRawMarkdown: '',
     newline: '\n',
     hasBom: false,
-    saving: false
+    saving: false,
+    isMissingOnDisk: false
+  }
+}
+
+/** 判断 IPC 错误是否表示磁盘路径已经不存在。 */
+function isMissingFileError(error: unknown): boolean {
+  return String(error).includes('ENOENT')
+}
+
+/** 统一文件树缓存键的路径分隔符。 */
+function normalizeTreePath(directory: string): string {
+  return directory.replace(/\\/g, '/')
+}
+
+/** 替换目录节点并淘汰已经移除的子目录缓存。 */
+function updateTreeCache(
+  state: Pick<EditorStore, 'treeNodes' | 'expandedDirs'>,
+  directory: string,
+  nodes: FileNode[]
+): Pick<EditorStore, 'treeNodes' | 'expandedDirs'> {
+  // 标准化目录用于匹配不同进程返回的路径分隔符。
+  const normalizedDirectory = normalizeTreePath(directory)
+  // 现有键保持文件树节点最初使用的路径格式。
+  const treeDirectory = Object.keys(state.treeNodes).find(
+    (cachedDirectory) => normalizeTreePath(cachedDirectory) === normalizedDirectory
+  ) ?? directory
+  // 当前直接子目录用于判断旧节点是否已经从磁盘移除。
+  const currentDirectories = new Set(
+    nodes.filter((node) => node.type === 'directory').map((node) => normalizeTreePath(node.path))
+  )
+  // 消失的直接子目录限定本次需要淘汰的缓存范围。
+  const removedDirectories = (state.treeNodes[treeDirectory] ?? [])
+    .filter((node) => node.type === 'directory' && !currentDirectories.has(normalizeTreePath(node.path)))
+    .map((node) => node.path)
+  // 新缓存先复制现有目录，再删除消失目录及其全部后代。
+  const treeNodes = { ...state.treeNodes }
+  for (const cachedDirectory of Object.keys(treeNodes)) {
+    if (removedDirectories.some((removedDirectory) => isInsideDir(removedDirectory, cachedDirectory))) {
+      delete treeNodes[cachedDirectory]
+    }
+  }
+  treeNodes[treeDirectory] = nodes
+  return {
+    treeNodes,
+    expandedDirs: state.expandedDirs.filter(
+      (expandedDirectory) =>
+        !removedDirectories.some((removedDirectory) =>
+          isInsideDir(removedDirectory, expandedDirectory)
+        )
+    )
   }
 }
 
@@ -207,7 +259,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
   closeWorkspace: () => set({ workspaceRoot: null, treeNodes: {}, expandedDirs: [] }),
   setTreeNodes: (directory, nodes) => {
-    set((state) => ({ treeNodes: { ...state.treeNodes, [directory]: nodes } }))
+    set((state) => updateTreeCache(state, directory, nodes))
   },
   expandDirectory: async (directory) => {
     const nodes = await window.api.workspace.scan(directory)
@@ -226,12 +278,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const candidates = Object.values(get().openDocs)
     for (const doc of candidates) {
       if (!doc.diskPath || !isInsideDir(directory, doc.diskPath)) continue
-      if (doc.rawMarkdown !== doc.savedRawMarkdown) continue
       const expectedPath = doc.diskPath
       const expectedRawMarkdown = doc.rawMarkdown
       const expectedSavedRawMarkdown = doc.savedRawMarkdown
       try {
         const data = await window.api.file.read(expectedPath)
+        if (expectedRawMarkdown !== expectedSavedRawMarkdown) continue
         const next = dataToDocument(data)
         set((state) => {
           const current = state.openDocs[doc.key]
@@ -244,6 +296,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             return state
           }
           if (
+            !current.isMissingOnDisk &&
             next.rawMarkdown === current.rawMarkdown &&
             next.newline === current.newline &&
             next.hasBom === current.hasBom
@@ -257,8 +310,19 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             }
           }
         })
-      } catch {
-        // 文件可能已被删除或锁定，保留当前缓冲区。
+      } catch (error) {
+        if (!isMissingFileError(error)) continue
+        set((state) => {
+          // 当前文档可能已在读取期间另存到其他路径。
+          const current = state.openDocs[doc.key]
+          if (!current || current.diskPath !== expectedPath || current.isMissingOnDisk) return state
+          return {
+            openDocs: {
+              ...state.openDocs,
+              [doc.key]: { ...current, saving: false, isMissingOnDisk: true }
+            }
+          }
+        })
       }
     }
   },
@@ -349,15 +413,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       }
     }))
   },
-  saveDocument: (key) => {
+  saveDocument: (key, promptForMissingFile = false) => {
     const previous = documentSaveQueues.get(key) ?? Promise.resolve(true)
     const queued = previous
       .catch(() => false)
       .then(async () => {
         const doc = get().openDocs[key]
         if (!doc) return false
-        if (!doc.diskPath) {
-          return get().activeKey === key ? get().saveActiveAs() : false
+        if (!doc.diskPath || doc.isMissingOnDisk) {
+          return promptForMissingFile && get().activeKey === key ? get().saveActiveAs() : false
         }
         if (doc.rawMarkdown === doc.savedRawMarkdown) return true
 
@@ -385,7 +449,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
                   diskPath: result.path,
                   name: basename(result.path),
                   savedRawMarkdown: rawMarkdown,
-                  saving: false
+                  saving: false,
+                  isMissingOnDisk: false
                 }
               }
             }
@@ -393,6 +458,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           return true
         } catch (error) {
           get().setSaving(key, false)
+          if (isMissingFileError(error)) {
+            set((state) => {
+              // 仅标记仍指向本次保存路径的文档。
+              const current = state.openDocs[key]
+              if (!current || current.diskPath !== diskPath) return state
+              return {
+                openDocs: {
+                  ...state.openDocs,
+                  [key]: { ...current, isMissingOnDisk: true }
+                }
+              }
+            })
+            return promptForMissingFile && get().activeKey === key
+              ? get().saveActiveAs()
+              : false
+          }
           toast.error('保存失败', { description: String(error) })
           return false
         }
@@ -409,8 +490,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!activeKey) return false
     const doc = openDocs[activeKey]
     if (!doc) return false
-    if (!doc.diskPath) return get().saveActiveAs()
-    return get().saveDocument(activeKey)
+    if (!doc.diskPath || doc.isMissingOnDisk) return get().saveActiveAs()
+    return get().saveDocument(activeKey, true)
   },
   saveActiveAs: async () => {
     const { activeKey, openDocs } = get()
@@ -441,7 +522,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
               diskPath: result.path,
               name: result.name,
               savedRawMarkdown: doc.rawMarkdown,
-              saving: false
+              saving: false,
+              isMissingOnDisk: false
             }
           }
         }
