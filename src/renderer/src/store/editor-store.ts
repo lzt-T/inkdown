@@ -28,6 +28,7 @@ export interface OpenDocument {
 }
 
 type SidebarView = 'files' | 'outline'
+type RecentEntryKind = 'file' | 'workspace'
 
 interface EditorStore {
   workspaceRoot: string | null
@@ -117,8 +118,28 @@ function untitledDocument(): OpenDocument {
 }
 
 /** 判断 IPC 错误是否表示磁盘路径已经不存在。 */
-function isMissingFileError(error: unknown): boolean {
+function isMissingPathError(error: unknown): boolean {
   return String(error).includes('ENOENT')
+}
+
+/** 移除指定最近路径，并返回主进程持久化后的最近状态。 */
+async function persistRecentPathRemoval(
+  recent: RecentState,
+  kind: RecentEntryKind,
+  path: string
+): Promise<RecentState> {
+  // 下一份最近状态仅修改目标类型对应的路径集合。
+  const nextRecent: RecentState =
+    kind === 'file'
+      ? { ...recent, files: recent.files.filter((item) => item !== path) }
+      : {
+          ...recent,
+          workspaces: recent.workspaces.filter((item) => item !== path),
+          lastWorkspace: recent.lastWorkspace === path ? null : recent.lastWorkspace
+        }
+  // 主进程返回值作为界面与磁盘共同采用的最新状态。
+  const persistedState = await window.api.settings.set({ recent: nextRecent })
+  return persistedState.recent
 }
 
 /** 统一文件树缓存键的路径分隔符。 */
@@ -236,14 +257,27 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   scrollToHeading: (index) => set({ headingTarget: { index, nonce: Date.now() } }),
   consumeHeadingTarget: () => set({ headingTarget: null }),
 
+  /** 按路径打开工作区，并清理已经失效的最近工作区记录。 */
   openWorkspacePath: async (path) => {
-    const snapshot = await window.api.workspace.openPath(path)
-    if (!snapshot) return
-    set({
-      workspaceRoot: snapshot.root,
-      treeNodes: { [snapshot.root]: snapshot.nodes },
-      expandedDirs: [snapshot.root]
-    })
+    try {
+      // 工作区快照用于初始化根目录及首层文件树。
+      const snapshot = await window.api.workspace.openPath(path)
+      if (!snapshot) return
+      set({
+        workspaceRoot: snapshot.root,
+        treeNodes: { [snapshot.root]: snapshot.nodes },
+        expandedDirs: [snapshot.root]
+      })
+    } catch (error) {
+      if (!isMissingPathError(error)) {
+        toast.error('无法打开文件夹', { description: String(error) })
+        return
+      }
+      // 持久化结果用于刷新最近工作区并停止后续启动恢复。
+      const recent = await persistRecentPathRemoval(get().recent, 'workspace', path)
+      get().setRecent(recent)
+      toast.warning('文件夹已不存在', { description: '已从最近使用中移除' })
+    }
   },
   openWorkspace: async () => {
     const snapshot = await window.api.workspace.open()
@@ -311,7 +345,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           }
         })
       } catch (error) {
-        if (!isMissingFileError(error)) continue
+        if (!isMissingPathError(error)) continue
         set((state) => {
           // 当前文档可能已在读取期间另存到其他路径。
           const current = state.openDocs[doc.key]
@@ -332,12 +366,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!data) return
     get().openData(data)
   },
+  /** 按路径打开文件，并清理已经失效的最近文件记录。 */
   openPath: async (path) => {
     try {
+      // 文件数据仅在路径成功读取后交给编辑器打开。
       const data = await window.api.file.openPath(path)
       get().openData(data)
     } catch (error) {
-      toast.error('无法打开文件', { description: String(error) })
+      if (!isMissingPathError(error)) {
+        toast.error('无法打开文件', { description: String(error) })
+        return
+      }
+      // 持久化结果用于立即刷新欢迎页中的最近文件。
+      const recent = await persistRecentPathRemoval(get().recent, 'file', path)
+      get().setRecent(recent)
+      toast.warning('文件已不存在', { description: '已从最近使用中移除' })
     }
   },
   openData: (data) => {
