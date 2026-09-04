@@ -501,7 +501,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           return true
         } catch (error) {
           get().setSaving(key, false)
-          if (isMissingFileError(error)) {
+          if (isMissingPathError(error)) {
             set((state) => {
               // 仅标记仍指向本次保存路径的文档。
               const current = state.openDocs[key]
