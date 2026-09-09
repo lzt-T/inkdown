@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { randomUUID } from 'crypto'
 import { basename, dirname, extname, join, relative, resolve } from 'path'
 import { shell } from 'electron'
 import { isAuthorized, isInside } from './security'
@@ -55,18 +56,63 @@ export async function readMarkdown(filePath: string): Promise<OpenFileData> {
   }
 }
 
+/** 在原文件上写入，避免 Windows 因禁止替换文件而拒绝保存。 */
+async function writeFileInPlace(filePath: string, payload: string): Promise<void> {
+  // 只有目标不存在时才创建文件，权限等其他打开错误直接上抛。
+  const handle = await fs.open(filePath, 'r+').catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== 'ENOENT') throw error
+    return fs.open(filePath, 'w')
+  })
+  try {
+    await handle.writeFile(payload, 'utf8')
+    await handle.truncate(Buffer.byteLength(payload, 'utf8'))
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
+}
+
+/** 将完整内容同步到同目录临时文件，再原子替换目标。 */
+async function writeFileAtomically(filePath: string, payload: string): Promise<void> {
+  // 唯一名称配合排他创建，避免覆盖其他保存操作的临时文件。
+  const tempPath = join(dirname(filePath), `.${basename(filePath)}.${randomUUID()}.tmp`)
+  // 创建成功后才进入清理流程，避免误删不属于本次保存的文件。
+  const handle = await fs.open(tempPath, 'wx')
+  try {
+    try {
+      await handle.writeFile(payload, 'utf8')
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    await fs.rename(tempPath, filePath)
+  } finally {
+    // 替换成功后临时路径已消失；清理失败不得覆盖保存结果。
+    await fs.unlink(tempPath).catch(() => {})
+  }
+}
+
+// Windows 优先兼容原地写入，其他平台保留原子替换。
+const FILE_WRITE_STRATEGIES: Partial<Record<NodeJS.Platform, typeof writeFileInPlace>> = {
+  win32: writeFileInPlace,
+  darwin: writeFileAtomically,
+  linux: writeFileAtomically
+}
+
+/** 保留文档换行和 BOM，并按平台选择保存方式。 */
 export async function writeMarkdown(
   filePath: string,
   content: string,
   newline: '\r\n' | '\n' = '\n',
   hasBom = false
 ): Promise<void> {
+  // 统一保存路径，供平台写入策略使用。
   const resolved = resolve(filePath)
+  // 使用文档原有换行格式生成本次保存内容。
   const normalized = newline === '\r\n' ? content.replace(/\r?\n/g, '\r\n') : content.replace(/\r\n/g, '\n')
+  // BOM 与正文作为同一份内容写入。
   const payload = (hasBom ? '\uFEFF' : '') + normalized
-  const tempPath = join(dirname(resolved), `.${basename(resolved)}.${Date.now()}.tmp`)
-  await fs.writeFile(tempPath, payload, 'utf8')
-  await fs.rename(tempPath, resolved)
+  await (FILE_WRITE_STRATEGIES[process.platform] ?? writeFileAtomically)(resolved, payload)
 }
 
 function sanitizeFileName(name: string): string {
