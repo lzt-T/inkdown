@@ -34,18 +34,16 @@ import { Input } from '@/components/ui/input'
 import { basename, dirname } from '@/lib/markdown-paths'
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
+import {
+  CREATE_DEFAULT_NAMES,
+  getAvailableName,
+  type EditingState
+} from '@/components/file-tree-editing'
 
-type EditingState =
-  | {
-      kind: 'rename'
-      path: string
-      value: string
-      parent: string
-      depth: number
-      nodeType: FileNode['type']
-    }
-  | { kind: 'create-file'; parent: string; value: string; depth: number }
-  | { kind: 'create-folder'; parent: string; value: string; depth: number }
+interface FileTreeProps {
+  editing: EditingState | null
+  onEdit: React.Dispatch<React.SetStateAction<EditingState | null>>
+}
 
 interface TreeNodeProps {
   node: FileNode
@@ -71,22 +69,14 @@ interface EditingRowProps {
   onFocused: () => void
 }
 
-// 新建类型映射到对应的中文默认名称。
-const CREATE_DEFAULT_NAMES: Record<'create-file' | 'create-folder', string> = {
-  'create-file': '未命名.md',
-  'create-folder': '新建文件夹'
-}
-
 /** Renders the active workspace as an editable Markdown file tree. */
-export function FileTree(): React.JSX.Element {
+export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element {
   // Workspace root labels the panel and scopes root nodes.
   const workspaceRoot = useEditorStore((state) => state.workspaceRoot)
   // Tree nodes provide directory children by absolute path.
   const treeNodes = useEditorStore((state) => state.treeNodes)
   // Expanded directories control visible tree branches.
   const expandedDirs = useEditorStore((state) => state.expandedDirs)
-  // 单一编辑状态确保任意层级只显示一个临时节点。
-  const [editing, setEditing] = useState<EditingState | null>(null)
   // 待删除节点用于驱动文件和文件夹共用的确认弹窗。
   const [pendingDelete, setPendingDelete] = useState<FileNode | null>(null)
 
@@ -96,10 +86,13 @@ export function FileTree(): React.JSX.Element {
   const workspaceName = basename(workspaceRoot) || workspaceRoot
   // Root nodes populate the first visible tree level.
   const rootNodes = treeNodes[workspaceRoot] ?? []
+  // 顶部新建操作在根层显示，与子目录编辑共用同一状态。
+  const rootEditing =
+    editing?.kind === 'create-file' && editing.parent === workspaceRoot ? editing : null
 
   /** 更新当前树内编辑行的名称。 */
   function handleEditingValueChange(value: string): void {
-    setEditing((current) => (current ? { ...current, value } : null))
+    onEdit((current) => (current ? { ...current, value } : null))
   }
 
   /** 关闭编辑行并提交当前文件系统操作。 */
@@ -107,7 +100,7 @@ export function FileTree(): React.JSX.Element {
     if (!editing) return
     // 提交前关闭编辑行，避免回车与失焦重复触发操作。
     const currentEditing = editing
-    setEditing(null)
+    onEdit(null)
     void commitEditing(currentEditing, value)
   }
 
@@ -133,7 +126,23 @@ export function FileTree(): React.JSX.Element {
           <span className="truncate">{workspaceName}</span>
         </div>
         <div className="flex-1 overflow-auto py-1.5">
-          {rootNodes.length === 0 ? (
+          {rootEditing && (
+            <EditingRow
+              value={rootEditing.value}
+              depth={0}
+              nodeType="file"
+              shouldFocus={rootEditing.shouldFocus ?? false}
+              onChange={handleEditingValueChange}
+              onCancel={() => onEdit(null)}
+              onCommit={handleCommitEditing}
+              onFocused={() =>
+                onEdit((current) =>
+                  current?.kind === 'create-file' ? { ...current, shouldFocus: false } : current
+                )
+              }
+            />
+          )}
+          {rootNodes.length === 0 && !rootEditing ? (
             <div className="px-3 py-6 text-center text-xs text-muted-foreground">
               暂无 Markdown 文件
             </div>
@@ -146,7 +155,7 @@ export function FileTree(): React.JSX.Element {
                 expandedDirs={expandedDirs}
                 treeNodes={treeNodes}
                 editing={editing}
-                onEdit={setEditing}
+                onEdit={onEdit}
                 onEditingValueChange={handleEditingValueChange}
                 onCommitEdit={handleCommitEditing}
                 onDeleteRequest={setPendingDelete}
@@ -459,32 +468,20 @@ function EditingRow({
   )
 }
 
-/** 返回目录中尚未占用的默认名称。 */
-function getAvailableName(defaultName: string, nodes: FileNode[]): string {
-  // 已有名称集合用于在临时节点出现前确定编号。
-  const existingNames = new Set(nodes.map((node) => node.name))
-  if (!existingNames.has(defaultName)) return defaultName
-  // 扩展名位置用于保证 Markdown 编号位于 .md 之前。
-  const extensionIndex = defaultName.lastIndexOf('.')
-  // 仅文件默认名包含需要保留的扩展名。
-  const hasExtension = extensionIndex > 0
-  // 默认名称主体承载递增编号。
-  const stem = hasExtension ? defaultName.slice(0, extensionIndex) : defaultName
-  // 文件扩展名在编号后保持不变。
-  const extension = hasExtension ? defaultName.slice(extensionIndex) : ''
-  // 编号从 1 开始匹配现有文件系统命名规则。
-  let index = 1
-  while (existingNames.has(`${stem} ${index}${extension}`)) index += 1
-  return `${stem} ${index}${extension}`
-}
-
 /** Commits a file-tree create or rename operation. */
 async function commitEditing(editing: EditingState, value: string): Promise<void> {
   if (!value) return
   try {
     if (editing.kind === 'create-file') {
-      await window.api.file.create(editing.parent, value)
-      await useEditorStore.getState().refreshDirectory(editing.parent)
+      // 实际路径来自主进程，包含提交时处理后的唯一文件名。
+      const file = await window.api.file.create(editing.parent, value)
+      try {
+        await useEditorStore.getState().refreshDirectory(editing.parent)
+      } catch (error) {
+        if (!editing.openAfterCreate) throw error
+        toast.warning('无法加载文件所在目录', { description: String(error) })
+      }
+      if (editing.openAfterCreate) await useEditorStore.getState().openPath(file.path)
     } else if (editing.kind === 'create-folder') {
       await window.api.file.createFolder(editing.parent, value)
       await useEditorStore.getState().refreshDirectory(editing.parent)

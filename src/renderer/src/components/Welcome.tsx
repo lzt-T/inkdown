@@ -15,6 +15,10 @@ interface RecentGroupProps {
   onOpen: (path: string) => void
 }
 
+interface WelcomeProps {
+  onNewFile: () => void
+}
+
 // Maximum number of entries shown in each recent group.
 const RECENT_ITEM_LIMIT = 6
 
@@ -73,7 +77,7 @@ function RecentGroup({ title, items, icon: Icon, onOpen }: RecentGroupProps): Re
 }
 
 /** Presents the editor entry actions and recent local documents. */
-export function Welcome(): React.JSX.Element {
+export function Welcome({ onNewFile }: WelcomeProps): React.JSX.Element {
   // Recent paths populate the workspace continuation panel.
   const recent = useEditorStore((state) => state.recent)
   // Workspace actions remain delegated to the editor store.
@@ -84,8 +88,6 @@ export function Welcome(): React.JSX.Element {
   const openFileDialog = useEditorStore((state) => state.openFileDialog)
   // Direct file opening powers recent file entries.
   const openPath = useEditorStore((state) => state.openPath)
-  // Untitled document creation remains the primary action.
-  const newUntitled = useEditorStore((state) => state.newUntitled)
   // The recent panel stays visible as a useful empty state for first-time users.
   const hasRecentItems = recent.files.length > 0 || recent.workspaces.length > 0
 
@@ -107,7 +109,7 @@ export function Welcome(): React.JSX.Element {
           </p>
 
           <div className="mt-9 flex flex-wrap gap-2">
-            <Button size="sm" className="rounded-md active:translate-y-px" onClick={newUntitled}>
+            <Button size="sm" className="rounded-md active:translate-y-px" onClick={onNewFile}>
               <FilePlus /> 新建文件
             </Button>
             <Button

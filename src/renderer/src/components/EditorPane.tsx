@@ -6,7 +6,12 @@ import { MilkdownSurface } from './MilkdownSurface'
 import { SourceEditor } from './SourceEditor'
 import { Welcome } from './Welcome'
 
-export const EditorPane = memo(function EditorPane(): React.JSX.Element {
+interface EditorPaneProps {
+  onNewFile: () => void
+}
+
+/** 展示活动文档，并将统一的新建入口传递给欢迎页。 */
+export const EditorPane = memo(function EditorPane({ onNewFile }: EditorPaneProps): React.JSX.Element {
   const activeKey = useEditorStore((state) => state.activeKey)
   const hasActiveDoc = useEditorStore((state) => Boolean(activeKey && state.openDocs[activeKey]))
   const rawMarkdown = useEditorStore((state) =>
@@ -33,7 +38,7 @@ export const EditorPane = memo(function EditorPane(): React.JSX.Element {
       <TabsBar />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!hasActiveDoc ? (
-          <Welcome />
+          <Welcome onNewFile={onNewFile} />
         ) : mode === 'wysiwyg' ? (
           <MilkdownSurface
             key={activeKey}

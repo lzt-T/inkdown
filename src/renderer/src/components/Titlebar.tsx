@@ -38,6 +38,7 @@ interface TitlebarProps {
   downloadProgress: AppUpdateDownloadProgress | null
   onOpenSettings: () => void
   onReturnToEditor: () => void
+  onNewFile: () => void
   onOpenUpdate: () => void
 }
 
@@ -168,6 +169,7 @@ export function Titlebar({
   downloadProgress,
   onOpenSettings,
   onReturnToEditor,
+  onNewFile,
   onOpenUpdate
 }: TitlebarProps): React.JSX.Element {
   // Editor state and actions power the toolbar controls.
@@ -178,7 +180,6 @@ export function Titlebar({
     mode,
     toggleSidebar,
     toggleMode,
-    newUntitled,
     openWorkspace,
     openFileDialog,
     saveActive
@@ -189,12 +190,6 @@ export function Titlebar({
   const activeDoc = activeKey ? openDocs[activeKey] : null
   // Dirty state adds an unsaved indicator beside the document title.
   const dirty = activeDoc ? activeDoc.rawMarkdown !== activeDoc.savedRawMarkdown : false
-
-  /** Creates a document and restores the editor workspace. */
-  const handleNewFile = (): void => {
-    onReturnToEditor()
-    newUntitled()
-  }
 
   /** Opens the file picker and restores the editor workspace. */
   const handleOpenFile = (): void => {
@@ -240,7 +235,7 @@ export function Titlebar({
           {sidebarOpen ? <PanelLeftOpen /> : <PanelLeftClose />}
         </TitlebarAction>
         <Separator orientation="vertical" className="mx-1.5 h-4" />
-        <TitlebarAction label="新建文件" onClick={handleNewFile}>
+        <TitlebarAction label="新建文件" onClick={onNewFile}>
           <FilePlus />
         </TitlebarAction>
         <TitlebarAction label="打开文件" onClick={handleOpenFile}>

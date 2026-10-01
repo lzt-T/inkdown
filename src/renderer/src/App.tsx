@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { EditorPane } from '@/components/EditorPane'
 import { FileTree } from '@/components/FileTree'
+import {
+  CREATE_DEFAULT_NAMES,
+  getAvailableName,
+  type EditingState
+} from '@/components/file-tree-editing'
 import { OutlinePanel } from '@/components/OutlinePanel'
 import { SettingsPage } from '@/pages/settings'
 import { StatusBar } from '@/components/StatusBar'
@@ -25,6 +30,8 @@ const SIDEBAR_TABS = [
 function App(): React.JSX.Element {
   // Shell-local navigation preserves editor state without expanding the shared store.
   const [activeSurface, setActiveSurface] = useState<AppSurface>('editor')
+  // 顶部、欢迎页入口与文件树共用唯一的树内命名状态。
+  const [treeEditing, setTreeEditing] = useState<EditingState | null>(null)
   // Theme state controls renderer styling and native window persistence.
   const theme = useEditorStore((state) => state.theme)
   // Panel visibility remains shared editor state.
@@ -61,6 +68,35 @@ function App(): React.JSX.Element {
 
   /** Restores the mounted editor workspace. */
   const returnToEditor = (): void => setActiveSurface('editor')
+
+  /** 按当前工作区启动新建流程，保持传给记忆化编辑区的回调引用稳定。 */
+  const handleNewFile = useCallback((): void => {
+    setActiveSurface('editor')
+    // 点击时的最新目录上下文决定新建位置。
+    const store = useEditorStore.getState()
+    if (!store.workspaceRoot) {
+      store.newUntitled()
+      return
+    }
+    store.setSidebarView('files')
+    setTreeEditing({
+      kind: 'create-file',
+      parent: store.workspaceRoot,
+      value: getAvailableName(
+        CREATE_DEFAULT_NAMES['create-file'],
+        store.treeNodes[store.workspaceRoot] ?? []
+      ),
+      depth: 0,
+      openAfterCreate: true,
+      shouldFocus: true
+    })
+  }, [])
+
+  useEffect(() => {
+    return useEditorStore.subscribe((state, previous) => {
+      if (state.workspaceRoot !== previous.workspaceRoot) setTreeEditing(null)
+    })
+  }, [])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
@@ -203,6 +239,7 @@ function App(): React.JSX.Element {
         downloadProgress={updater.downloadProgress}
         onOpenSettings={openSettings}
         onReturnToEditor={returnToEditor}
+        onNewFile={handleNewFile}
         onOpenUpdate={updater.openDialog}
       />
       <div className="relative flex min-h-0 flex-1">
@@ -251,7 +288,7 @@ function App(): React.JSX.Element {
                       className="min-h-0 flex-1"
                     >
                       {sidebarView === 'files' ? (
-                        <FileTree />
+                        <FileTree editing={treeEditing} onEdit={setTreeEditing} />
                       ) : (
                         <OutlinePanel documentKey={activeKey} items={outlineItems} />
                       )}
@@ -262,7 +299,7 @@ function App(): React.JSX.Element {
               </>
             )}
             <Panel minSize={360} className="min-w-0">
-              <EditorPane />
+              <EditorPane onNewFile={handleNewFile} />
             </Panel>
           </Group>
         </div>
