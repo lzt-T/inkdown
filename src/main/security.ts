@@ -18,7 +18,9 @@ export function isInside(parent: string, child: string): boolean {
   const parentPath = normalize(parent)
   // 目标路径统一解析后参与授权判断。
   const childPath = normalize(child)
-  return childPath === parentPath || childPath.startsWith(parentPath + sep)
+  // 盘符根目录已有分隔符，避免重复添加后无法匹配子路径。
+  const prefix = parentPath.endsWith(sep) ? parentPath : parentPath + sep
+  return childPath === parentPath || childPath.startsWith(prefix)
 }
 
 /** 替换当前工作区根目录授权。 */

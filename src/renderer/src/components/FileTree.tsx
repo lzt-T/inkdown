@@ -206,7 +206,9 @@ function TreeNode({
   // 菜单编辑意图跨越菜单卸载过程且无需触发渲染。
   const isEditingFromMenuRef = useRef(false)
   // Active state highlights the currently edited file.
-  const active = node.type === 'file' && node.path === activeKey
+  const active =
+    node.type === 'file' &&
+    node.path.replace(/\\/g, '/').toLowerCase() === activeKey?.replace(/\\/g, '/').toLowerCase()
   // Directory children render below expanded branches.
   const children = node.type === 'directory' ? treeNodes[node.path] ?? [] : []
   // Expanded state selects the directory affordance and children.

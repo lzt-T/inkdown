@@ -71,19 +71,45 @@ function App(): React.JSX.Element {
   useEffect(() => {
     // Mounted guard prevents applying settings after effect cleanup.
     let mounted = true
-    void window.api.settings.get().then((settings) => {
+    /** 恢复设置与历史工作区，再允许消费系统文件请求。 */
+    const initializeWorkspace = async (): Promise<void> => {
+      // 设置快照决定本次启动需要恢复的历史根目录。
+      const settings = await window.api.settings.get()
       if (!mounted) return
       useEditorStore.getState().setTheme(settings.theme)
       useEditorStore.getState().setRecent(settings.recent)
       if (settings.recent.lastWorkspace) {
-        void useEditorStore
+        await useEditorStore
           .getState()
           .openWorkspacePath(settings.recent.lastWorkspace)
           .catch(() => undefined)
       }
-    })
+    }
+
+    /** 顺序打开主进程当前队列中的文件。 */
+    const openPendingFiles = async (): Promise<void> => {
+      if (!mounted) return
+      // 待打开路径通过一次原子读取从主进程队列中移除。
+      const paths = await window.api.app.takeOpenFilePaths()
+      if (paths.length === 0) return
+      setActiveSurface('editor')
+      // 同一批次逐个等待目录协调完成，最后一个文件保持活动状态。
+      const store = useEditorStore.getState()
+      for (const path of paths) await store.openPath(path)
+    }
+
+    // Promise 链同时保证初始化先完成、不同请求批次不重叠。
+    let openQueue = initializeWorkspace()
+    /** 将系统请求接入同一消费队列，前一次失败不阻止后续请求。 */
+    const enqueueOpenFiles = (): void => {
+      openQueue = openQueue.then(openPendingFiles, openPendingFiles)
+    }
+    // 先订阅再安排首次消费，期间到达的路径仍保留在主进程队列中。
+    const unsubscribe = window.api.app.onOpenFilesRequested(enqueueOpenFiles)
+    enqueueOpenFiles()
     return () => {
       mounted = false
+      unsubscribe()
     }
   }, [])
 
@@ -97,24 +123,6 @@ function App(): React.JSX.Element {
     return window.api.settings.onRecentChanged((recent) => {
       useEditorStore.getState().setRecent(recent)
     })
-  }, [])
-
-  useEffect(() => {
-    /** 打开主进程当前队列中的全部文件。 */
-    const openPendingFiles = async (): Promise<void> => {
-      // 待打开路径通过一次原子读取从主进程队列中移除。
-      const paths = await window.api.app.takeOpenFilePaths()
-      if (paths.length === 0) return
-      setActiveSurface('editor')
-      // 当前 Store 快照复用现有的按路径打开文档行为。
-      const store = useEditorStore.getState()
-      for (const path of paths) await store.openPath(path)
-    }
-
-    // 先订阅再执行首次读取，避免遗漏系统打开请求。
-    const unsubscribe = window.api.app.onOpenFilesRequested(() => void openPendingFiles())
-    void openPendingFiles()
-    return unsubscribe
   }, [])
 
   useEffect(() => {

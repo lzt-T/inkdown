@@ -11,8 +11,9 @@ import {
   collapseInkdownImagePaths,
   expandLocalImagePaths,
   isInsideDir,
-  basename
-} from '../lib/markdown-paths'
+  basename,
+  dirname
+} from '@/lib/markdown-paths'
 
 export interface OpenDocument {
   key: string
@@ -70,6 +71,7 @@ interface EditorStore {
   openFileDialog: () => Promise<void>
   openPath: (path: string) => Promise<void>
   openData: (data: OpenFileData) => void
+  revealFileInWorkspace: (path: string) => Promise<void>
   newUntitled: () => void
   activateTab: (key: string) => void
   closeTab: (key: string) => void
@@ -361,10 +363,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  /** 打开选择的文档，并同步其文件树位置。 */
   openFileDialog: async () => {
+    // 取消选择时不改变文档或目录上下文。
     const data = await window.api.file.open()
     if (!data) return
     get().openData(data)
+    await get().revealFileInWorkspace(data.path)
   },
   /** 按路径打开文件，并清理已经失效的最近文件记录。 */
   openPath: async (path) => {
@@ -372,6 +377,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       // 文件数据仅在路径成功读取后交给编辑器打开。
       const data = await window.api.file.openPath(path)
       get().openData(data)
+      await get().revealFileInWorkspace(data.path)
     } catch (error) {
       if (!isMissingPathError(error)) {
         toast.error('无法打开文件', { description: String(error) })
@@ -383,7 +389,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       toast.warning('文件已不存在', { description: '已从最近使用中移除' })
     }
   },
+  /** 将读取成功的文档写入编辑状态。 */
   openData: (data) => {
+    // 文档状态独立于目录加载结果，目录失败仍可继续编辑。
     const doc = dataToDocument(data)
     set((state) => {
       const alreadyOpen = Object.values(state.openDocs).some(
@@ -403,6 +411,45 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         activeHeading: 0
       }
     })
+  },
+  /** 建立文件父目录工作区，或展开已有工作区中的祖先目录。 */
+  revealFileInWorkspace: async (path) => {
+    try {
+      // 当前根决定保留工作区还是切换到文件父目录。
+      const root = get().workspaceRoot
+      if (!root || !isInsideDir(root, path)) {
+        // 直接加载快照，避免目录错误进入最近文件失效处理。
+        const snapshot = await window.api.workspace.openPath(dirname(path))
+        if (snapshot) get().setWorkspace(snapshot.root, snapshot.nodes)
+        return
+      }
+      // 新扫描的节点暂存，全部成功后再提交，避免失败时破坏现有树。
+      const treeNodes: Record<string, FileNode[]> = {}
+      // 路径使用树中已有节点的格式，避免分隔符不同产生重复缓存键。
+      const expandedDirs = [root]
+      // 根层节点已经随工作区加载，可直接开始寻找文件的祖先。
+      let nodes = get().treeNodes[root] ?? []
+      while (true) {
+        // 下一级祖先来自实际节点，保留磁盘路径的大小写与分隔符。
+        const ancestor = nodes.find(
+          (node) => node.type === 'directory' && isInsideDir(node.path, path)
+        )
+        if (!ancestor) break
+        expandedDirs.push(ancestor.path)
+        nodes = get().treeNodes[ancestor.path] ?? (await window.api.workspace.scan(ancestor.path))
+        treeNodes[ancestor.path] = nodes
+      }
+      set((state) =>
+        state.workspaceRoot === root
+          ? {
+              treeNodes: { ...state.treeNodes, ...treeNodes },
+              expandedDirs: [...new Set([...state.expandedDirs, ...expandedDirs])]
+            }
+          : state
+      )
+    } catch {
+      toast.warning('无法加载文件所在目录', { description: '文件已打开，可继续编辑' })
+    }
   },
   newUntitled: () => {
     const doc = untitledDocument()

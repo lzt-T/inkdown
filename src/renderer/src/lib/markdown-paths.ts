@@ -11,10 +11,14 @@ export function basename(value: string): string {
   return parts[parts.length - 1] ?? ''
 }
 
+/** 获取父目录，并保留盘符根目录的绝对路径形式。 */
 export function dirname(value: string): string {
+  // 标准化分隔符以兼容系统路径与 Markdown 路径。
   const normalized = normalizeSlashes(value).replace(/\/+$/, '')
+  // 最后一个分隔符决定父目录边界。
   const index = normalized.lastIndexOf('/')
   if (index <= 0) return normalized.startsWith('/') ? '/' : ''
+  if (index === 2 && /^[a-zA-Z]:\//.test(normalized)) return normalized.slice(0, 3)
   return normalized.slice(0, index)
 }
 

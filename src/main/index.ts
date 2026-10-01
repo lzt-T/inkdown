@@ -135,19 +135,23 @@ function registerIpcHandlers(): void {
     })
     if (result.canceled || result.filePaths.length === 0) return null
 
+    // 根目录在扫描成功后才替换当前授权。
     const root = resolve(result.filePaths[0])
-    addWorkspaceRoot(root)
+    // 首层节点加载失败时保留原工作区授权与监听。
     const nodes = await scanDir(root)
     await recordRecentWorkspace(root)
+    addWorkspaceRoot(root)
     startWorkspaceWatcher(root, getWindow())
     return { root, nodes } satisfies { root: string; nodes: FileNode[] }
   })
 
   ipcMain.handle(IPC_CHANNELS.workspaceOpenPath, async (_event, directory: string) => {
+    // 根目录在扫描成功后才替换当前授权。
     const root = resolve(directory)
-    addWorkspaceRoot(root)
+    // 首层节点加载失败时保留原工作区授权与监听。
     const nodes = await scanDir(root)
     await recordRecentWorkspace(root)
+    addWorkspaceRoot(root)
     startWorkspaceWatcher(root, getWindow())
     return { root, nodes } satisfies { root: string; nodes: FileNode[] }
   })
