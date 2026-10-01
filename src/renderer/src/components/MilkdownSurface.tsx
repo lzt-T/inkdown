@@ -1,5 +1,6 @@
 import { t } from '@/lib/i18n'
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MilkdownEditor } from 'zt-react-milkdown'
 import { toast } from 'sonner'
 
@@ -34,6 +35,8 @@ export function MilkdownSurface({
   onActiveHeadingChange: (index: number) => void
   onConsumeHeadingTarget: () => void
 }): React.JSX.Element {
+  // 订阅应用语言，让编辑器通过现有实例热更新内置文案。
+  const { i18n } = useTranslation()
   // Container reference scopes heading lookup and editor scroll tracking.
   const containerRef = useRef<HTMLDivElement>(null)
   // Navigation flag prevents programmatic scrolling from replacing the clicked heading.
@@ -186,8 +189,7 @@ export function MilkdownSurface({
         value={value}
         onChange={onChange}
         theme={theme}
-        locale="zh-CN"
-        placeholder="输入 Markdown，输入 / 唤起命令菜单..."
+        locale={i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en-US'}
         maxHeight="100%"
         debounceMs={160}
         className="h-full"
