@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import type {
@@ -28,8 +30,8 @@ interface UseAppUpdaterResult {
 
 // Update notification copy follows the action supplied by the main process.
 const UPDATE_NOTIFICATION_COPY: Record<AppUpdateState['action'], string> = {
-  download: 'Inkdown 新版本可供下载',
-  install: 'Inkdown 更新已准备就绪'
+  download: 'workspace.a-new-inkdown-version-is-available',
+  install: 'workspace.inkdown-update-is-ready'
 }
 
 /** Saves every dirty document in tab order and restores the original active tab. */
@@ -69,6 +71,10 @@ async function saveDirtyDocuments(): Promise<boolean> {
 
 /** Coordinates update state, notifications, document saving, and update actions. */
 export function useAppUpdater(): UseAppUpdaterResult {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  // 更新通知在语言切换时同步刷新。
+  const { i18n } = useTranslation()
+
   // Actionable update state drives the titlebar entry and detail dialog.
   const [updateState, setUpdateState] = useState<AppUpdateState | null>(null)
   // Download progress drives the temporary non-interactive titlebar indicator.
@@ -117,7 +123,7 @@ export function useAppUpdater(): UseAppUpdaterResult {
   async function handleDownload(): Promise<void> {
     // Main process owns the fixed external URL opened by this action.
     const opened = await window.api.updater.openDownload()
-    if (!opened) throw new Error('更新下载地址当前不可用')
+    if (!opened) throw new Error(t('workspace.update-download-url-is-unavailable'))
     setIsDialogOpen(false)
   }
 
@@ -126,12 +132,12 @@ export function useAppUpdater(): UseAppUpdaterResult {
     // Installation starts only after every dirty document is saved.
     const saved = await saveDirtyDocuments()
     if (!saved) {
-      toast.error('未能保存全部文档', { description: '更新尚未启动，请保存后重试。' })
+      toast.error(t('workspace.unable-to-save-all-documents'), { description: t('workspace.update-has-not-started-save-your-documents-and-try-again') })
       return
     }
     // Main process validates that a downloaded update is still available.
     const installing = await window.api.updater.install()
-    if (!installing) throw new Error('已下载的更新当前不可用')
+    if (!installing) throw new Error(t('workspace.downloaded-update-is-unavailable'))
   }
 
   /** Runs the platform-specific update action selected in the detail dialog. */
@@ -146,7 +152,7 @@ export function useAppUpdater(): UseAppUpdaterResult {
     try {
       await actionHandlers[updateState.action]()
     } catch (error) {
-      toast.error('无法继续更新', { description: String(error) })
+      toast.error(t('workspace.unable-to-continue-the-update'), { description: String(error) })
     } finally {
       setIsWorking(false)
     }
@@ -184,13 +190,13 @@ export function useAppUpdater(): UseAppUpdaterResult {
     if (!updateState) return
     // Stable toast ID prevents duplicate prompts for the same session update.
     const toastId = `app-update-${updateState.action}-${updateState.version}`
-    toast.info(UPDATE_NOTIFICATION_COPY[updateState.action], {
+    toast.info(t(UPDATE_NOTIFICATION_COPY[updateState.action]), {
       id: toastId,
-      description: `版本 ${updateState.version}`,
-      action: { label: '查看', onClick: () => setIsDialogOpen(true) },
+      description: t('workspace.version-value', { v0: updateState.version }),
+      action: { label: t('workspace.view'), onClick: () => setIsDialogOpen(true) },
       duration: 8000
     })
-  }, [updateState])
+  }, [updateState, i18n.language])
 
   return {
     updateState,

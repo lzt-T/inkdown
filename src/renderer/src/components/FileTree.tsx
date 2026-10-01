@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { useEffect, useRef, useState } from 'react'
 import {
   ChevronRight,
@@ -71,6 +73,9 @@ interface EditingRowProps {
 
 /** Renders the active workspace as an editable Markdown file tree. */
 export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Workspace root labels the panel and scopes root nodes.
   const workspaceRoot = useEditorStore((state) => state.workspaceRoot)
   // Tree nodes provide directory children by absolute path.
@@ -80,7 +85,7 @@ export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element 
   // 待删除节点用于驱动文件和文件夹共用的确认弹窗。
   const [pendingDelete, setPendingDelete] = useState<FileNode | null>(null)
 
-  if (!workspaceRoot) return <div className="p-4 text-sm text-muted-foreground">未打开文件夹</div>
+  if (!workspaceRoot) return <div className="p-4 text-sm text-muted-foreground">{t('workspace.no-folder-open')}</div>
 
   // Workspace name keeps the panel label concise while the title preserves the full path.
   const workspaceName = basename(workspaceRoot) || workspaceRoot
@@ -112,7 +117,7 @@ export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element 
     await window.api.file.trash(target.path)
     await useEditorStore.getState().refreshDirectory(dirname(target.path))
     setPendingDelete(null)
-    toast.success('已移至回收站')
+    toast.success(t('workspace.moved-to-trash'))
   }
 
   return (
@@ -143,9 +148,7 @@ export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element 
             />
           )}
           {rootNodes.length === 0 && !rootEditing ? (
-            <div className="px-3 py-6 text-center text-xs text-muted-foreground">
-              暂无 Markdown 文件
-            </div>
+            <div className="px-3 py-6 text-center text-xs text-muted-foreground">{t('workspace.no-markdown-files')}</div>
           ) : (
             rootNodes.map((node) => (
               <TreeNode
@@ -172,17 +175,15 @@ export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pendingDelete?.type === 'directory' ? '删除文件夹？' : '删除文件？'}
+              {pendingDelete?.type === 'directory' ? t('workspace.delete-folder') : t('workspace.delete-file')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              确定要将“{pendingDelete?.name}”移至回收站吗？
+              {t('workspace.delete-description', { name: pendingDelete?.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => void handleConfirmDelete()}>
-              移至回收站
-            </AlertDialogAction>
+            <AlertDialogCancel>{t('workspace.cancel')}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => void handleConfirmDelete()}>{t('workspace.move-to-trash')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -202,6 +203,9 @@ function TreeNode({
   onCommitEdit,
   onDeleteRequest
 }: TreeNodeProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // File action opens the selected Markdown document.
   const openPath = useEditorStore((state) => state.openPath)
   // Expand action loads and reveals a directory branch.
@@ -242,7 +246,7 @@ function TreeNode({
     // 展开后的最新子节点用于处理首次加载目录中的名称冲突。
     const directoryNodes = useEditorStore.getState().treeNodes[node.path] ?? []
     // 当前目录名称用于生成提交前即可见的唯一默认名称。
-    const value = getAvailableName(CREATE_DEFAULT_NAMES[kind], directoryNodes)
+    const value = getAvailableName(t(CREATE_DEFAULT_NAMES[kind]), directoryNodes)
     onEdit({ kind, parent: node.path, value, depth: depth + 1 })
   }
 
@@ -306,19 +310,17 @@ function TreeNode({
             }}
           >
             {node.type === 'file' ? (
-              <ContextMenuItem onSelect={handleOpen}>打开</ContextMenuItem>
+              <ContextMenuItem onSelect={handleOpen}>{t('workspace.open')}</ContextMenuItem>
             ) : (
-              <ContextMenuItem onSelect={handleOpen}>{isExpanded ? '折叠' : '展开'}</ContextMenuItem>
+              <ContextMenuItem onSelect={handleOpen}>{isExpanded ? t('workspace.collapse') : t('workspace.expand')}</ContextMenuItem>
             )}
             {node.type === 'directory' && (
               <>
                 <ContextMenuSeparator />
                 <ContextMenuItem onSelect={() => void handleStartCreate('create-file')}>
-                  <FilePlus /> 新建 Markdown
-                </ContextMenuItem>
+                  <FilePlus />{t('workspace.new-markdown-file')}</ContextMenuItem>
                 <ContextMenuItem onSelect={() => void handleStartCreate('create-folder')}>
-                  <FolderPlus /> 新建文件夹
-                </ContextMenuItem>
+                  <FolderPlus />{t('workspace.new-folder')}</ContextMenuItem>
               </>
             )}
             <ContextMenuSeparator />
@@ -336,14 +338,11 @@ function TreeNode({
                 })
               }}
             >
-              <Pencil /> 重命名
-            </ContextMenuItem>
+              <Pencil />{t('workspace.rename')}</ContextMenuItem>
             <ContextMenuItem onSelect={() => onDeleteRequest(node)}>
-              <Trash2 /> 删除
-            </ContextMenuItem>
+              <Trash2 />{t('workspace.delete')}</ContextMenuItem>
             <ContextMenuItem onSelect={() => void window.api.file.reveal(node.path)}>
-              <ExternalLink /> 在资源管理器中显示
-            </ContextMenuItem>
+              <ExternalLink />{t('workspace.show-in-file-manager')}</ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
       )}
@@ -399,6 +398,9 @@ function EditingRow({
   onCancel,
   onFocused
 }: EditingRowProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // 名称输入框引用用于在右键菜单完全关闭后获取焦点。
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -445,7 +447,7 @@ function EditingRow({
       <Input
         ref={inputRef}
         value={value}
-        aria-label={nodeType === 'file' ? '文件名' : '文件夹名称'}
+        aria-label={nodeType === 'file' ? t('workspace.file-name') : t('workspace.folder-name')}
         onChange={(event) => onChange(event.target.value)}
         onBlur={() => {
           if (value.trim()) onCommit(value.trim())
@@ -479,7 +481,7 @@ async function commitEditing(editing: EditingState, value: string): Promise<void
         await useEditorStore.getState().refreshDirectory(editing.parent)
       } catch (error) {
         if (!editing.openAfterCreate) throw error
-        toast.warning('无法加载文件所在目录', { description: String(error) })
+        toast.warning(t('workspace.unable-to-load-the-file-s-directory'), { description: String(error) })
       }
       if (editing.openAfterCreate) await useEditorStore.getState().openPath(file.path)
     } else if (editing.kind === 'create-folder') {
@@ -490,6 +492,6 @@ async function commitEditing(editing: EditingState, value: string): Promise<void
       await useEditorStore.getState().refreshDirectory(editing.parent)
     }
   } catch (error) {
-    toast.error('操作失败', { description: String(error) })
+    toast.error(t('workspace.operation-failed'), { description: String(error) })
   }
 }

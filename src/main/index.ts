@@ -1,3 +1,4 @@
+import { getSettingsSnapshot, mainI18n, t } from './i18n'
 import { app, shell, BrowserWindow, dialog, ipcMain, net, protocol } from 'electron'
 import { extname, join, resolve } from 'path'
 import { pathToFileURL } from 'url'
@@ -87,8 +88,9 @@ function focusMainWindow(): void {
   mainWindow.focus()
 }
 
+/** 获取主窗口，失败时返回当前语言的应用错误。 */
 function getWindow(): BrowserWindow {
-  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('主窗口不可用')
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error(t('native.main-window-is-unavailable'))
   return mainWindow
 }
 
@@ -112,25 +114,27 @@ async function recordRecentFile(filePath: string): Promise<void> {
   sendToRenderer(IPC_CHANNELS.recentChanged, recent)
 }
 
+/** 为授权本地资源注册应用协议。 */
 function registerProtocolHandler(): void {
   protocol.handle('inkdown-file', async (request) => {
     try {
       const url = new URL(request.url)
       const encodedPath = url.searchParams.get('path')
-      if (!encodedPath) return new Response('缺少 path 参数', { status: 400 })
+      if (!encodedPath) return new Response(t('native.missing-path-parameter'), { status: 400 })
       const filePath = resolve(decodeURIComponent(encodedPath))
-      if (!isAuthorized(filePath)) return new Response('无权访问该文件', { status: 403 })
+      if (!isAuthorized(filePath)) return new Response(t('native.file-access-is-not-authorized'), { status: 403 })
       return await net.fetch(pathToFileURL(filePath).toString())
     } catch {
-      return new Response('文件不存在', { status: 404 })
+      return new Response(t('native.file-does-not-exist'), { status: 404 })
     }
   })
 }
 
+/** 注册文件、窗口和设置接口，统一使用当前应用语言。 */
 function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.workspaceOpen, async () => {
     const result = await dialog.showOpenDialog(getWindow(), {
-      title: '打开文件夹',
+      title: t('native.open-folder'),
       properties: ['openDirectory', 'createDirectory']
     })
     if (result.canceled || result.filePaths.length === 0) return null
@@ -157,13 +161,13 @@ function registerIpcHandlers(): void {
   })
   ipcMain.handle(IPC_CHANNELS.workspaceScan, async (_event, directory: string) => {
     const resolved = resolve(directory)
-    if (!isAuthorized(resolved)) throw new Error('目录不在授权范围内')
+    if (!isAuthorized(resolved)) throw new Error(t('native.directory-is-not-authorized'))
     return scanDir(resolved)
   })
 
   ipcMain.handle(IPC_CHANNELS.fileOpen, async () => {
     const result = await dialog.showOpenDialog(getWindow(), {
-      title: '打开 Markdown 文件',
+      title: t('native.open-markdown-file'),
       properties: ['openFile'],
       filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
     })
@@ -187,13 +191,13 @@ function registerIpcHandlers(): void {
   })
   ipcMain.handle(IPC_CHANNELS.fileRead, async (_event, filePath: string) => {
     const resolved = resolve(filePath)
-    if (!isAuthorized(resolved)) throw new Error('文件不在授权范围内')
+    if (!isAuthorized(resolved)) throw new Error(t('native.file-is-not-authorized'))
     return readMarkdown(resolved)
   })
 
   ipcMain.handle(IPC_CHANNELS.fileSave, async (_event, request: WriteFileRequest) => {
     const resolved = resolve(request.path)
-    if (!isAuthorized(resolved)) throw new Error('文件不在授权范围内')
+    if (!isAuthorized(resolved)) throw new Error(t('native.file-is-not-authorized'))
     beginInternalWrite(resolved)
     let succeeded = false
     try {
@@ -213,8 +217,8 @@ function registerIpcHandlers(): void {
       payload: { defaultName?: string; content: string; newline: '\r\n' | '\n'; hasBom: boolean }
     ) => {
       const result = await dialog.showSaveDialog(getWindow(), {
-        title: '保存 Markdown 文件',
-        defaultPath: payload.defaultName || '未命名.md',
+        title: t('native.save-markdown-file'),
+        defaultPath: payload.defaultName || t('native.untitled-md'),
         filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
       })
       if (result.canceled || !result.filePath) return null
@@ -268,7 +272,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.imageSelectDirectory, async () => {
     // Native directory picker is the only UI used to choose a global image location.
     const result = await dialog.showOpenDialog(getWindow(), {
-      title: '选择图片保存目录',
+      title: t('native.select-image-directory'),
       properties: ['openDirectory', 'createDirectory']
     })
     return result.canceled || result.filePaths.length === 0 ? null : resolve(result.filePaths[0])
@@ -308,8 +312,13 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.windowClose, () => getWindow().close())
   ipcMain.handle(IPC_CHANNELS.windowIsMaximized, () => getWindow().isMaximized())
 
-  ipcMain.handle(IPC_CHANNELS.settingsGet, async () => loadState())
+  ipcMain.handle(IPC_CHANNELS.settingsGet, async () => getSettingsSnapshot(await loadState()))
   ipcMain.handle(IPC_CHANNELS.settingsSet, async (_event, patch: Partial<PersistedState>) => {
+    if (patch.language && !['system', 'zh-CN', 'en-US'].includes(patch.language)) {
+      throw new Error(t('native.unsupported-language'))
+    }
+    // 只读快照字段不允许通过配置更新持久化。
+    delete (patch as Partial<PersistedState> & { resolvedLocale?: string }).resolvedLocale
     // Proxy settings are validated and applied before becoming the persisted source of truth.
     const proxy = patch.proxy ? await applyProxySettings(patch.proxy) : undefined
     // Image settings receive path validation before sharing the generic persistence flow.
@@ -323,7 +332,13 @@ function registerIpcHandlers(): void {
     // Updated state supplies the protocol authorization used immediately after saving.
     const state = await updateState(normalizedPatch)
     setImageRoot(state.imageStorage.globalDirectory)
-    return state
+    // 原生文案和菜单先切换，返回同一语言快照供界面采用。
+    const snapshot = getSettingsSnapshot(state)
+    if (patch.language) {
+      await mainI18n.changeLanguage(snapshot.resolvedLocale)
+      installApplicationMenu((action) => sendToRenderer(IPC_CHANNELS.menuAction, action))
+    }
+    return snapshot
   })
 
   ipcMain.on(IPC_CHANNELS.dirtyCountChanged, (_event, count: number) => {
@@ -339,6 +354,7 @@ function saveWindowBounds(): void {
   void updateState({ windowBounds: bounds })
 }
 
+/** 使用持久化设置创建窗口并提供本地化退出确认。 */
 async function createWindow(): Promise<void> {
   // Persisted global image root must be authorized before renderer content loads.
   const state = await loadState()
@@ -383,10 +399,10 @@ async function createWindow(): Promise<void> {
     void dialog
       .showMessageBox(window, {
         type: 'warning',
-        title: '未保存的更改',
-        message: '有文档尚未保存，确定要退出吗？',
-        detail: '退出后未保存的更改将会丢失。',
-        buttons: ['取消', '退出'],
+        title: t('native.unsaved-changes'),
+        message: t('native.some-documents-have-unsaved-changes-quit-anyway'),
+        detail: t('native.unsaved-changes-will-be-lost-when-you-quit'),
+        buttons: [t('native.cancel'), t('native.quit')],
         defaultId: 0,
         cancelId: 0,
         noLink: true
@@ -440,6 +456,7 @@ app.whenReady().then(async () => {
 
   // Persisted proxy settings must be active before any updater or window network request.
   const initialState = await loadState()
+  await mainI18n.init({ lng: getSettingsSnapshot(initialState).resolvedLocale })
   await applyProxySettings(initialState.proxy)
 
   // Update controller stores actionable state until the renderer is ready.

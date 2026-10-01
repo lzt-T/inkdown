@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { session, type ProxyConfig } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { ProxyMode, ProxySettings } from '../shared/contracts'
@@ -24,7 +25,7 @@ function normalizeProxyServer(server: string): string {
   try {
     url = new URL(value)
   } catch {
-    throw new Error('请输入有效的代理地址，例如 127.0.0.1:7890')
+    throw new Error(t('native.enter-a-valid-proxy-address-such-as-127-0-0-1-7890'))
   }
   // Raw authority preserves explicitly supplied default ports that URL normalizes away.
   const authority = value.slice(value.indexOf('://') + 3).split(/[/?#]/, 1)[0]
@@ -34,14 +35,14 @@ function normalizeProxyServer(server: string): string {
   const port = Number(portMatch?.[1])
 
   if (!PROXY_PROTOCOLS.has(url.protocol)) {
-    throw new Error('代理仅支持 HTTP、HTTPS、SOCKS4 或 SOCKS5 协议')
+    throw new Error(t('native.proxy-supports-only-http-https-socks4-or-socks5'))
   }
   if (!url.hostname || !portMatch || port < 1 || port > 65535) {
-    throw new Error('代理地址必须包含有效的主机和端口')
+    throw new Error(t('native.proxy-address-must-include-a-valid-host-and-port'))
   }
-  if (url.username || url.password) throw new Error('当前版本不支持需要账号密码的代理')
+  if (url.username || url.password) throw new Error(t('native.proxies-requiring-a-username-and-password-are-not-supported'))
   if (url.pathname !== '/' || value.includes('?') || value.includes('#')) {
-    throw new Error('代理地址不能包含路径、查询参数或片段')
+    throw new Error(t('native.proxy-address-must-not-contain-a-path-query-or-fragment'))
   }
   return `${url.protocol}//${url.hostname}:${port}`
 }
@@ -57,7 +58,7 @@ function createElectronProxyConfig(settings: ProxySettings): ProxyConfig {
 
 /** Validates proxy settings and returns their canonical persisted form. */
 export function normalizeProxySettings(settings: ProxySettings): ProxySettings {
-  if (!PROXY_MODES.has(settings.mode)) throw new Error('不支持的代理模式')
+  if (!PROXY_MODES.has(settings.mode)) throw new Error(t('native.unsupported-proxy-mode'))
   // Manual mode requires a usable server while other modes retain the previous input.
   const server = settings.mode === 'manual' ? normalizeProxyServer(settings.server) : settings.server.trim()
   return { mode: settings.mode, server }

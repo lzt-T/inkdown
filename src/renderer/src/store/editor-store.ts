@@ -1,3 +1,4 @@
+import { t } from '@/lib/i18n'
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import type {
@@ -103,12 +104,13 @@ function dataToDocument(data: OpenFileData): OpenDocument {
   }
 }
 
+/** 使用创建时的界面语言生成未保存文档名称。 */
 function untitledDocument(): OpenDocument {
   const id = crypto.randomUUID()
   return {
     key: `untitled:${id}`,
     diskPath: null,
-    name: '未命名.md',
+    name: t('workspace.untitled-md'),
     rawMarkdown: '',
     viewMarkdown: '',
     savedRawMarkdown: '',
@@ -272,13 +274,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       })
     } catch (error) {
       if (!isMissingPathError(error)) {
-        toast.error('无法打开文件夹', { description: String(error) })
+        toast.error(t('workspace.unable-to-open-folder'), { description: String(error) })
         return
       }
       // 持久化结果用于刷新最近工作区并停止后续启动恢复。
       const recent = await persistRecentPathRemoval(get().recent, 'workspace', path)
       get().setRecent(recent)
-      toast.warning('文件夹已不存在', { description: '已从最近使用中移除' })
+      toast.warning(t('workspace.folder-no-longer-exists'), { description: t('workspace.removed-from-recent-items') })
     }
   },
   openWorkspace: async () => {
@@ -380,13 +382,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       await get().revealFileInWorkspace(data.path)
     } catch (error) {
       if (!isMissingPathError(error)) {
-        toast.error('无法打开文件', { description: String(error) })
+        toast.error(t('workspace.unable-to-open-file'), { description: String(error) })
         return
       }
       // 持久化结果用于立即刷新欢迎页中的最近文件。
       const recent = await persistRecentPathRemoval(get().recent, 'file', path)
       get().setRecent(recent)
-      toast.warning('文件已不存在', { description: '已从最近使用中移除' })
+      toast.warning(t('workspace.file-no-longer-exists'), { description: t('workspace.removed-from-recent-items') })
     }
   },
   /** 将读取成功的文档写入编辑状态。 */
@@ -448,7 +450,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           : state
       )
     } catch {
-      toast.warning('无法加载文件所在目录', { description: '文件已打开，可继续编辑' })
+      toast.warning(t('workspace.unable-to-load-the-file-s-directory'), { description: t('workspace.the-file-is-open-you-can-continue-editing') })
     }
   },
   newUntitled: () => {
@@ -564,7 +566,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
               ? get().saveActiveAs()
               : false
           }
-          toast.error('保存失败', { description: String(error) })
+          toast.error(t('workspace.save-failed'), { description: String(error) })
           return false
         }
       })
@@ -621,7 +623,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return true
     } catch (error) {
       get().setSaving(activeKey, false)
-      toast.error('另存为失败', { description: String(error) })
+      toast.error(t('workspace.save-as-failed'), { description: String(error) })
       return false
     }
   },

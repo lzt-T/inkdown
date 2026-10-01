@@ -12,6 +12,7 @@ import {
   type ImportImageResult,
   type MenuAction,
   type PersistedState,
+  type SettingsSnapshot,
   type RecentState,
   type WriteFileRequest
 } from '../shared/contracts'
@@ -79,9 +80,9 @@ const api = {
     }
   },
   settings: {
-    get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet) as Promise<PersistedState>,
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet) as Promise<SettingsSnapshot>,
     set: (patch: Partial<PersistedState>) =>
-      ipcRenderer.invoke(IPC_CHANNELS.settingsSet, patch) as Promise<PersistedState>,
+      ipcRenderer.invoke(IPC_CHANNELS.settingsSet, patch) as Promise<SettingsSnapshot>,
     /** Subscribes to recent-state changes broadcast by the main process. */
     onRecentChanged: (callback: (recent: RecentState) => void) => {
       /** Forwards persisted recent-state updates into the renderer callback. */

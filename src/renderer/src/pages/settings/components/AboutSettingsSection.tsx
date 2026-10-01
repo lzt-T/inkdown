@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { Download, Info, LoaderCircle, RefreshCw } from 'lucide-react'
 import type { AppUpdateState } from '../../../../../shared/contracts'
 import { Button } from '@/components/ui/button'
@@ -16,17 +18,17 @@ const UPDATE_CHECK_STATUS_LABELS: Record<
   Exclude<UpdateCheckViewState['status'], 'available'>,
   string
 > = {
-  idle: '启动时会自动检查更新',
-  checking: '正在检查更新...',
-  'up-to-date': '当前已是最新版本',
-  unavailable: '开发环境不支持检查更新',
-  error: '检查更新失败，请稍后重试'
+  idle: 'settings.updates-are-checked-automatically-at-startup',
+  checking: 'settings.checking-for-updates',
+  'up-to-date': 'settings.you-are-up-to-date',
+  unavailable: 'settings.update-checks-are-unavailable-in-development',
+  error: 'settings.update-check-failed-try-again-later'
 }
 
 // Actionable update states map to the next step available to the user.
 const UPDATE_ACTION_STATUS_LABELS: Record<AppUpdateState['action'], string> = {
-  download: '可供下载',
-  install: '已准备就绪'
+  download: 'settings.available-to-download',
+  install: 'settings.ready'
 }
 
 /** Renders application version details and the manual update action. */
@@ -37,25 +39,28 @@ export function AboutSettingsSection({
   onCheckForUpdates,
   onOpenUpdate
 }: AboutSettingsSectionProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Actionable update state takes precedence over the latest manual check result.
   const statusLabel = updateState
-    ? `版本 ${updateState.version} ${UPDATE_ACTION_STATUS_LABELS[updateState.action]}`
+    ? t('settings.version-value-value', { v0: updateState.version, v1: t(UPDATE_ACTION_STATUS_LABELS[updateState.action]) })
     : checkState.status === 'available'
       ? checkState.version
-        ? `发现版本 ${checkState.version}，正在后台下载`
-        : '发现新版本，正在后台下载'
-      : UPDATE_CHECK_STATUS_LABELS[checkState.status]
+        ? t('settings.version-value-found-downloading-in-the-background', { v0: checkState.version })
+        : t('settings.new-version-found-downloading-in-the-background')
+      : t(UPDATE_CHECK_STATUS_LABELS[checkState.status])
   // Pending state covers checks and downloads only before an action becomes available.
   const isPending =
     !updateState && (checkState.status === 'checking' || checkState.status === 'available')
   // Actionable updates open the existing detail dialog instead of checking again.
   const buttonLabel = updateState
-    ? '查看更新'
+    ? t('settings.view-update')
     : checkState.status === 'checking'
-      ? '正在检查'
+      ? t('settings.checking')
       : checkState.status === 'available'
-        ? '正在下载'
-        : '检查更新'
+        ? t('settings.downloading')
+        : t('settings.check-for-updates')
 
   /** Routes the version action to checking or the existing update dialog. */
   const handleUpdateAction = (): void => {
@@ -65,13 +70,11 @@ export function AboutSettingsSection({
 
   return (
     <div className="max-w-3xl">
-      <h2 className="text-base font-semibold text-foreground">关于</h2>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-        查看 Inkdown 版本并获取最新更新。
-      </p>
+      <h2 className="text-base font-semibold text-foreground">{t('settings.about')}</h2>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('settings.view-the-inkdown-version-and-get-updates')}</p>
 
       <div className="mt-7 max-w-2xl">
-        <h3 className="text-sm font-medium text-foreground">版本</h3>
+        <h3 className="text-sm font-medium text-foreground">{t('settings.version')}</h3>
         <div className="mt-3 flex flex-col gap-4 border-y py-4 @min-[36rem]:flex-row @min-[36rem]:items-center @min-[36rem]:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
@@ -80,7 +83,7 @@ export function AboutSettingsSection({
             <div className="min-w-0">
               <p className="text-sm font-medium text-foreground">Inkdown</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {currentVersion ? `版本 ${currentVersion}` : '正在读取版本...'}
+                {currentVersion ? t('settings.version-value', { v0: currentVersion }) : t('settings.loading-version')}
               </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">{statusLabel}</p>
             </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -9,9 +10,14 @@ import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
 /** Renders application notifications with the shared theme tokens. */
 function Toaster({ style, toastOptions, ...props }: ToasterProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  // 通知容器和关闭按钮使用当前应用语言。
+  const { t } = useTranslation()
+
   return (
     <Sonner
       className="toaster group"
+      containerAriaLabel={t('workspace.notifications')}
       icons={{
         success: <CircleCheckIcon className="size-4 text-primary" />,
         info: <InfoIcon className="size-4 text-primary" />,
@@ -21,6 +27,7 @@ function Toaster({ style, toastOptions, ...props }: ToasterProps): React.JSX.Ele
       }}
       toastOptions={{
         ...toastOptions,
+        closeButtonAriaLabel: t('workspace.close-notification'),
         classNames: {
           toast: '!border-border !bg-popover !pr-12 !text-popover-foreground',
           description: '!text-muted-foreground',

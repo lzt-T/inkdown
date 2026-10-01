@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { app, shell } from 'electron'
 import { autoUpdater, type UpdateInfo } from 'electron-updater'
 import type {
@@ -122,7 +123,7 @@ export function startAutoUpdater(options: UpdateServiceOptions): AutoUpdaterCont
   })
   autoUpdater.on('error', (error) => {
     publishDownloadProgress(null)
-    console.error('自动更新失败:', error)
+    console.error(t('native.automatic-update-failed'), error)
   })
 
   // The automatic check remains silent while manual checks surface their own result.

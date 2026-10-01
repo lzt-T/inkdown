@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { dirname, isAbsolute, resolve } from 'path'
 import type {
   ImageStorageMode,
@@ -23,7 +24,7 @@ function normalizeRelativeImageDirectory(value: string): string {
     normalized.startsWith('/') ||
     normalized.split('/').includes('..')
   ) {
-    throw new Error('请输入文档目录内的相对路径')
+    throw new Error(t('native.enter-a-relative-path-within-the-document-directory'))
   }
   return segments.length === 0 ? '.' : segments.join('/')
 }
@@ -34,7 +35,7 @@ function normalizeGitHubSettings(settings: ImageStorageSettings): ImageStorageSe
   const github = settings.github
   if (!github) return null
   if (!github.owner || !github.repository || !github.branch) {
-    throw new Error('GitHub 图床配置不完整')
+    throw new Error(t('native.github-image-storage-configuration-is-incomplete'))
   }
   return github
 }
@@ -46,13 +47,13 @@ export function normalizeImageStorageSettings(settings: ImageStorageSettings): I
   // GitHub metadata is validated independently from the active mode.
   const github = normalizeGitHubSettings(settings)
   if (!(['relative', 'global', 'github'] as ImageStorageMode[]).includes(settings.mode)) {
-    throw new Error('未知的图片保存模式')
+    throw new Error(t('native.unknown-image-storage-mode'))
   }
   if (settings.mode === 'global' && !globalDirectory) {
-    throw new Error('请先选择全局图片目录')
+    throw new Error(t('native.select-a-global-image-directory-first'))
   }
   if (settings.mode === 'github' && !github) {
-    throw new Error('请先配置 GitHub 图床')
+    throw new Error(t('native.configure-github-image-storage-first'))
   }
   return {
     mode: settings.mode,
@@ -89,7 +90,7 @@ async function importLocalImage(
   try {
     // Resolved document path must already belong to an authorized workspace or file.
     const documentPath = resolve(request.documentPath)
-    if (!isAuthorized(documentPath)) throw new Error('文档不在授权范围内')
+    if (!isAuthorized(documentPath)) throw new Error(t('native.document-is-not-authorized'))
     // Document directory anchors relative image storage and Markdown paths.
     const documentDir = dirname(documentPath)
     // Current settings determine the authorized local destination.
@@ -99,9 +100,9 @@ async function importLocalImage(
       mode === 'global'
         ? settings.globalDirectory
         : resolve(documentDir, normalizeRelativeImageDirectory(settings.relativeDirectory))
-    if (!targetDir) throw new Error('请先选择全局图片目录')
+    if (!targetDir) throw new Error(t('native.select-a-global-image-directory-first'))
     if (mode === 'relative' && !isInside(documentDir, targetDir)) {
-      throw new Error('图片目录不能超出文档目录')
+      throw new Error(t('native.image-directory-must-remain-within-the-document-directory'))
     }
     if (mode === 'global') setImageRoot(targetDir)
     return await importImage({

@@ -1,3 +1,4 @@
+import { t } from '@/lib/i18n'
 import { useEffect, useRef } from 'react'
 import { MilkdownEditor } from 'zt-react-milkdown'
 import { toast } from 'sonner'
@@ -51,16 +52,16 @@ export function MilkdownSurface({
         mimeType: file.type
       })
       if (result.fallbackReason === 'unsaved-document') {
-        toast.info('文档尚未保存，图片将以 Data URL 嵌入')
+        toast.info(t('workspace.document-is-unsaved-the-image-will-be-embedded-as-a-data-url'))
       }
       if (result.fallbackReason === 'local-import-failed') {
-        toast.error('图片导入失败，已回退为 Data URL', {
+        toast.error(t('workspace.image-import-failed-embedded-as-a-data-url-instead'), {
           description: result.fallbackDescription
         })
       }
       return result.src
     } catch (error) {
-      toast.error('图片上传失败，未插入图片', { description: String(error) })
+      toast.error(t('workspace.image-upload-failed-no-image-inserted'), { description: String(error) })
       throw error
     }
   }

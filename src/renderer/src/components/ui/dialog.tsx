@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from 'react-i18next'
 import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
@@ -45,6 +46,7 @@ function DialogOverlay({
   )
 }
 
+/** 展示弹窗内容并按当前应用语言提供关闭标签。 */
 function DialogContent({
   className,
   children,
@@ -53,6 +55,8 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  // 语言订阅使无障碍关闭标签同步切换。
+  const { t } = useTranslation()
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -71,7 +75,7 @@ function DialogContent({
             className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t('workspace.close')}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>
@@ -89,6 +93,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/** 展示弹窗操作并翻译可选的关闭按钮。 */
 function DialogFooter({
   className,
   showCloseButton = false,
@@ -97,6 +102,8 @@ function DialogFooter({
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
 }) {
+  // 可选关闭按钮跟随当前界面语言。
+  const { t } = useTranslation()
   return (
     <div
       data-slot="dialog-footer"
@@ -109,7 +116,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
+          <Button variant="outline">{t('workspace.close')}</Button>
         </DialogPrimitive.Close>
       )}
     </div>

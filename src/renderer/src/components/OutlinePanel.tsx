@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
@@ -33,6 +35,9 @@ function OutlineTreeItem({
   onToggle,
   onSelect
 }: OutlineTreeItemProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Child presence controls whether a disclosure button is shown.
   const hasChildren = node.children.length > 0
   // Per-document collapse state controls descendant visibility.
@@ -47,9 +52,9 @@ function OutlineTreeItem({
           <button
             type="button"
             className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
-            aria-label={`${isCollapsed ? '展开' : '收起'} ${node.text || '无标题'}`}
+            aria-label={`${isCollapsed ? t('workspace.expand') : t('workspace.collapse-2')} ${node.text || t('workspace.untitled')}`}
             aria-expanded={!isCollapsed}
-            title={isCollapsed ? '展开子标题' : '收起子标题'}
+            title={isCollapsed ? t('workspace.expand-subheadings') : t('workspace.collapse-subheadings')}
             onClick={() => onToggle(node.index)}
           >
             {isCollapsed ? (
@@ -73,7 +78,7 @@ function OutlineTreeItem({
           )}
           title={node.text}
         >
-          <span className="truncate">{node.text || '无标题'}</span>
+          <span className="truncate">{node.text || t('workspace.untitled')}</span>
         </button>
       </div>
       {hasChildren && !isCollapsed && (
@@ -98,6 +103,9 @@ function OutlineTreeItem({
 
 /** Renders a collapsible heading tree for the active document. */
 export function OutlinePanel({ documentKey, items }: OutlinePanelProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Active heading follows the editor viewport.
   const activeHeading = useEditorStore((state) => state.activeHeading)
   // Direct selection updates the clicked heading before editor navigation begins.
@@ -156,14 +164,14 @@ export function OutlinePanel({ documentKey, items }: OutlinePanelProps): React.J
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-8 shrink-0 items-center justify-between px-3 text-xs font-medium text-panel-foreground">
-        <span>当前文档</span>
-        <span className="font-normal tabular-nums text-muted-foreground">{items.length} 项</span>
+        <span>{t('workspace.current-document')}</span>
+        <span className="font-normal tabular-nums text-muted-foreground">{t('workspace.heading-count', { count: items.length })}</span>
       </div>
       <div className="relative flex-1 overflow-auto py-2">
         {items.length === 0 ? (
-          <div className="px-3 py-6 text-center text-xs text-muted-foreground">暂无标题</div>
+          <div className="px-3 py-6 text-center text-xs text-muted-foreground">{t('workspace.no-headings')}</div>
         ) : (
-          <ul aria-label="文档大纲" className="m-0 list-none p-0">
+          <ul aria-label={t('workspace.document-outline')} className="m-0 list-none p-0">
             {tree.map((node) => (
               <OutlineTreeItem
                 key={`${node.line}-${node.index}`}

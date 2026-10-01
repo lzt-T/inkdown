@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Code2,
@@ -23,8 +25,8 @@ import { useEditorStore } from '@/store/editor-store'
 
 // Update action labels describe the command behind the temporary titlebar entry.
 const UPDATE_ACTION_LABELS: Record<AppUpdateState['action'], string> = {
-  download: '查看可用更新',
-  install: '安装已下载更新'
+  download: 'workspace.view-available-update',
+  install: 'workspace.install-downloaded-update'
 }
 
 // Progress ring radius leaves room for the stroke inside its view box.
@@ -58,6 +60,7 @@ interface DownloadProgressIconProps {
 
 /** Renders download progress as a compact circular titlebar indicator. */
 function DownloadProgressIcon({ percent }: DownloadProgressIconProps): React.JSX.Element {
+
   // Dash offset reveals the completed portion clockwise from the top.
   const dashOffset = DOWNLOAD_PROGRESS_CIRCUMFERENCE * (1 - percent / 100)
 
@@ -98,6 +101,7 @@ function TitlebarAction({
   suppressHoverAfterClick,
   onClick
 }: TitlebarActionProps): React.JSX.Element {
+
   // 受控状态确保窗口隐藏前能够主动关闭提示。
   const [isTooltipOpen, setIsTooltipOpen] = useState(false)
   // 最小化恢复前隐藏由静止指针保留的悬停背景。
@@ -172,6 +176,9 @@ export function Titlebar({
   onNewFile,
   onOpenUpdate
 }: TitlebarProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Editor state and actions power the toolbar controls.
   const {
     activeKey,
@@ -231,38 +238,38 @@ export function Titlebar({
           className="pointer-events-none mx-0.5 size-4.5 shrink-0 select-none opacity"
         />
         <Separator orientation="vertical" className="mx-1 h-4" />
-        <TitlebarAction label="切换侧栏" isActive={sidebarOpen} onClick={toggleSidebar}>
+        <TitlebarAction label={t('workspace.toggle-sidebar')} isActive={sidebarOpen} onClick={toggleSidebar}>
           {sidebarOpen ? <PanelLeftOpen /> : <PanelLeftClose />}
         </TitlebarAction>
         <Separator orientation="vertical" className="mx-1.5 h-4" />
-        <TitlebarAction label="新建文件" onClick={onNewFile}>
+        <TitlebarAction label={t('workspace.new-file')} onClick={onNewFile}>
           <FilePlus />
         </TitlebarAction>
-        <TitlebarAction label="打开文件" onClick={handleOpenFile}>
+        <TitlebarAction label={t('workspace.open-file')} onClick={handleOpenFile}>
           <FileText />
         </TitlebarAction>
-        <TitlebarAction label="打开文件夹" onClick={handleOpenWorkspace}>
+        <TitlebarAction label={t('workspace.open-folder')} onClick={handleOpenWorkspace}>
           <FolderOpen />
         </TitlebarAction>
-        <TitlebarAction label="保存" disabled={!activeDoc} onClick={() => void saveActive()}>
+        <TitlebarAction label={t('workspace.save')} disabled={!activeDoc} onClick={() => void saveActive()}>
           <Save />
         </TitlebarAction>
       </div>
 
       <div className="mx-4 flex min-w-0 flex-1 items-center justify-center gap-2">
         <span className="truncate text-xs font-medium text-foreground">
-          {isSettingsOpen ? '设置' : (activeDoc?.name ?? 'Inkdown')}
+          {isSettingsOpen ? t('workspace.settings') : (activeDoc?.name ?? 'Inkdown')}
         </span>
-        {!isSettingsOpen && dirty && <span className="text-[11px] text-primary">未保存</span>}
+        {!isSettingsOpen && dirty && <span className="text-[11px] text-primary">{t('workspace.unsaved')}</span>}
       </div>
 
       <div className="flex items-center gap-0.5">
-        <TitlebarAction label="切换源码模式" isActive={mode === 'source'} onClick={toggleMode}>
+        <TitlebarAction label={t('workspace.toggle-source-mode')} isActive={mode === 'source'} onClick={toggleMode}>
           <Code2 />
         </TitlebarAction>
         {downloadProgress ? (
           <TitlebarAction
-            label={`正在下载 ${downloadProgress.percent}%`}
+            label={t('workspace.downloading-value', { v0: downloadProgress.percent })}
             className="text-primary disabled:opacity-100"
             disabled
           >
@@ -270,7 +277,7 @@ export function Titlebar({
           </TitlebarAction>
         ) : updateState ? (
           <TitlebarAction
-            label={UPDATE_ACTION_LABELS[updateState.action]}
+            label={t(UPDATE_ACTION_LABELS[updateState.action])}
             className="relative text-primary hover:text-primary"
             onClick={onOpenUpdate}
           >
@@ -280,7 +287,7 @@ export function Titlebar({
         ) : null}
         <Separator orientation="vertical" className="mx-1.5 h-4" />
         <TitlebarAction
-          label={isSettingsOpen ? '返回编辑器' : '打开设置'}
+          label={isSettingsOpen ? t('workspace.back-to-editor') : t('workspace.open-settings')}
           isActive={isSettingsOpen}
           onClick={isSettingsOpen ? onReturnToEditor : onOpenSettings}
         >
@@ -291,20 +298,20 @@ export function Titlebar({
           <>
             <Separator orientation="vertical" className="mx-1 h-4" />
             <TitlebarAction
-              label="最小化"
+              label={t('workspace.minimize')}
               suppressHoverAfterClick
               onClick={() => void window.api.window.minimize()}
             >
               <Minus />
             </TitlebarAction>
             <TitlebarAction
-              label={maximized ? '还原' : '最大化'}
+              label={maximized ? t('workspace.restore') : t('workspace.maximize')}
               onClick={() => void window.api.window.toggleMaximize()}
             >
               <Square className={cn(maximized && 'rotate-180')} />
             </TitlebarAction>
             <TitlebarAction
-              label="关闭"
+              label={t('workspace.close')}
               className="hover:bg-destructive hover:text-white dark:hover:bg-destructive"
               onClick={() => void window.api.window.close()}
             >

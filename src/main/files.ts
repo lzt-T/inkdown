@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { promises as fs } from 'fs'
 import { randomUUID } from 'crypto'
 import { basename, dirname, extname, join, relative, resolve } from 'path'
@@ -150,6 +151,7 @@ export function inkdownUrlToPath(url: string): string | null {
   }
 }
 
+/** 将图片写入授权目录，并使用当前语言反馈应用级错误。 */
 export async function importImage(input: {
   name: string
   data: Uint8Array
@@ -158,7 +160,7 @@ export async function importImage(input: {
   storageMode: 'relative' | 'global'
 }): Promise<ImportImageResult> {
   const targetDir = resolve(input.targetDir)
-  if (!isAuthorized(targetDir)) throw new Error('目标目录不在授权范围内')
+  if (!isAuthorized(targetDir)) throw new Error(t('native.target-directory-is-not-authorized'))
   await fs.mkdir(targetDir, { recursive: true })
 
   const fileName = sanitizeFileName(input.name)
@@ -177,26 +179,29 @@ export async function importImage(input: {
   }
 }
 
+/** 在授权目录创建不覆盖已有名称的 Markdown 文件。 */
 export async function createMarkdownFile(directory: string, name: string): Promise<FileNode> {
   const resolved = resolve(directory)
-  if (!isAuthorized(resolved)) throw new Error('目录不在授权范围内')
+  if (!isAuthorized(resolved)) throw new Error(t('native.directory-is-not-authorized'))
   const fileName = name.toLowerCase().endsWith('.md') || name.toLowerCase().endsWith('.markdown') ? name : `${name}.md`
   const filePath = await uniquePath(resolved, fileName)
   await fs.writeFile(filePath, '', 'utf8')
   return { name: basename(filePath), path: filePath, type: 'file' }
 }
 
+/** 创建授权范围内的新文件夹。 */
 export async function createFolder(directory: string, name: string): Promise<FileNode> {
   const resolved = resolve(directory)
-  if (!isAuthorized(resolved)) throw new Error('目录不在授权范围内')
+  if (!isAuthorized(resolved)) throw new Error(t('native.directory-is-not-authorized'))
   const folderPath = await uniquePath(resolved, sanitizeFileName(name))
   await fs.mkdir(folderPath, { recursive: true })
   return { name: basename(folderPath), path: folderPath, type: 'directory' }
 }
 
+/** 重命名授权路径，并返回更新后的文件节点。 */
 export async function renameEntry(oldPath: string, newName: string): Promise<FileNode> {
   const resolvedOld = resolve(oldPath)
-  if (!isAuthorized(resolvedOld)) throw new Error('路径不在授权范围内')
+  if (!isAuthorized(resolvedOld)) throw new Error(t('native.path-is-not-authorized'))
   const cleanName = sanitizeFileName(newName)
   const parent = dirname(resolvedOld)
   const newPath = join(parent, cleanName)
@@ -209,9 +214,10 @@ export async function renameEntry(oldPath: string, newName: string): Promise<Fil
   }
 }
 
+/** 将授权范围内的路径移至系统回收站。 */
 export async function trashEntry(target: string): Promise<void> {
   const resolved = resolve(target)
-  if (!isAuthorized(resolved)) throw new Error('路径不在授权范围内')
+  if (!isAuthorized(resolved)) throw new Error(t('native.path-is-not-authorized'))
   await shell.trashItem(resolved)
 }
 

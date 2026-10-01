@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { useEffect, useState } from 'react'
 import { Check, FolderOpen, GitBranch, KeyRound, LoaderCircle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -12,15 +14,18 @@ import type {
 
 // Image storage labels map fixed strategy keys to visible names.
 const IMAGE_STORAGE_MODE_LABELS: Record<ImageStorageMode, string> = {
-  relative: '相对文档目录',
-  global: '全局固定目录',
-  github: 'GitHub 图床'
+  relative: 'settings.relative-to-document',
+  global: 'settings.global-directory',
+  github: 'settings.github-image-storage'
 }
 // Ordered storage modes keep the segmented control stable.
 const IMAGE_STORAGE_MODES: ImageStorageMode[] = ['relative', 'global', 'github']
 
 /** Renders local and GitHub image storage configuration. */
 export function ImageSettingsSection(): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Persisted settings remain the source of truth for active imports.
   const [imageStorage, setImageStorage] = useState<ImageStorageSettings | null>(null)
   // Selected mode can preview the GitHub form before that mode is activated.
@@ -50,7 +55,7 @@ export function ImageSettingsSection(): React.JSX.Element {
       setRelativeDirectoryError(null)
       return true
     } catch (error) {
-      toast.error('图片保存设置未更新', { description: String(error) })
+      toast.error(t('settings.image-storage-settings-were-not-updated'), { description: String(error) })
       return false
     } finally {
       setIsSaving(false)
@@ -88,7 +93,7 @@ export function ImageSettingsSection(): React.JSX.Element {
     const isSaved = await persistImageStorage({ ...imageStorage, relativeDirectory })
     if (!isSaved) {
       setRelativeDirectory(imageStorage.relativeDirectory)
-      setRelativeDirectoryError('请输入不包含绝对路径或“..”的相对目录')
+      setRelativeDirectoryError(t('settings.enter-a-relative-directory-without-an-absolute-path-or'))
     }
   }
 
@@ -96,11 +101,11 @@ export function ImageSettingsSection(): React.JSX.Element {
   const configureGitHub = async (): Promise<void> => {
     if (!imageStorage || isSaving) return
     if (!repository.trim()) {
-      toast.error('请输入 GitHub 仓库地址')
+      toast.error(t('settings.enter-a-github-repository-url'))
       return
     }
     if (!githubStatus?.hasToken && !token.trim()) {
-      toast.error('请输入具有 Contents 写入权限的 GitHub Token')
+      toast.error(t('settings.enter-a-github-token-with-write-access-to-contents'))
       return
     }
 
@@ -115,9 +120,9 @@ export function ImageSettingsSection(): React.JSX.Element {
       setImageStorage({ ...imageStorage, mode: 'github', github: status.settings })
       setSelectedMode('github')
       setToken('')
-      toast.success('GitHub 图床已启用')
+      toast.success(t('settings.github-image-storage-enabled'))
     } catch (error) {
-      toast.error('GitHub 图床配置失败', { description: String(error) })
+      toast.error(t('settings.github-image-storage-configuration-failed'), { description: String(error) })
     } finally {
       setIsSaving(false)
     }
@@ -135,9 +140,9 @@ export function ImageSettingsSection(): React.JSX.Element {
       setGitHubStatus({ settings: null, hasToken: false })
       setRepository('')
       setToken('')
-      toast.success('GitHub 图床配置已清除')
+      toast.success(t('settings.github-image-storage-configuration-cleared'))
     } catch (error) {
-      toast.error('无法清除 GitHub 图床配置', { description: String(error) })
+      toast.error(t('settings.unable-to-clear-github-image-storage-configuration'), { description: String(error) })
     } finally {
       setIsSaving(false)
     }
@@ -162,7 +167,7 @@ export function ImageSettingsSection(): React.JSX.Element {
         }
       })
       .catch((error) => {
-        toast.error('无法读取图片设置', { description: String(error) })
+        toast.error(t('settings.unable-to-load-image-settings'), { description: String(error) })
       })
     return () => {
       mounted = false
@@ -171,18 +176,16 @@ export function ImageSettingsSection(): React.JSX.Element {
 
   return (
     <div className="max-w-3xl">
-      <h2 className="text-base font-semibold text-foreground">图片</h2>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-        设置新插入图片的保存位置，已有图片不会被移动。
-      </p>
+      <h2 className="text-base font-semibold text-foreground">{t('settings.images')}</h2>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('settings.choose-where-new-images-are-saved-existing-images-will-stay-in-place')}</p>
 
       <div className="mt-7">
-        <h3 className="text-sm font-medium text-foreground">保存位置</h3>
+        <h3 className="text-sm font-medium text-foreground">{t('settings.storage-location')}</h3>
         {imageStorage ? (
           <div className="mt-3 space-y-5">
             <div
               role="group"
-              aria-label="图片保存模式"
+              aria-label={t('settings.image-storage-mode')}
               className="inline-grid grid-cols-3 rounded-md bg-muted p-1"
             >
               {IMAGE_STORAGE_MODES.map((mode) => {
@@ -202,7 +205,7 @@ export function ImageSettingsSection(): React.JSX.Element {
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {IMAGE_STORAGE_MODE_LABELS[mode]}
+                    {t(IMAGE_STORAGE_MODE_LABELS[mode])}
                   </button>
                 )
               })}
@@ -210,9 +213,7 @@ export function ImageSettingsSection(): React.JSX.Element {
 
             {selectedMode === 'relative' && (
               <div>
-                <label htmlFor="relative-image-directory" className="text-sm font-medium text-foreground">
-                  相对目录
-                </label>
+                <label htmlFor="relative-image-directory" className="text-sm font-medium text-foreground">{t('settings.relative-directory')}</label>
                 <Input
                   id="relative-image-directory"
                   value={relativeDirectory}
@@ -242,16 +243,14 @@ export function ImageSettingsSection(): React.JSX.Element {
                     relativeDirectoryError ? 'text-destructive' : 'text-muted-foreground'
                   )}
                 >
-                  {relativeDirectoryError ?? '例如 assets、assets/images；使用 . 可保存到文档同目录。'}
+                  {relativeDirectoryError ?? t('settings.for-example-assets-or-assets-images-use-to-save-beside-the-document')}
                 </p>
               </div>
             )}
 
             {selectedMode === 'global' && (
               <div>
-                <label htmlFor="global-image-directory" className="text-sm font-medium text-foreground">
-                  全局目录
-                </label>
+                <label htmlFor="global-image-directory" className="text-sm font-medium text-foreground">{t('settings.global-directory-2')}</label>
                 <div className="mt-2 flex flex-col gap-2 @min-[36rem]:flex-row">
                   <Input
                     id="global-image-directory"
@@ -265,13 +264,9 @@ export function ImageSettingsSection(): React.JSX.Element {
                     disabled={isSaving}
                     onClick={() => void selectGlobalDirectory()}
                   >
-                    <FolderOpen />
-                    选择文件夹
-                  </Button>
+                    <FolderOpen />{t('settings.choose-folder')}</Button>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  全局目录使用绝对文件链接，移动文档后仍会引用此目录。
-                </p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{t('settings.global-storage-uses-absolute-file-links-that-remain-unchanged-when-the-document-moves')}</p>
               </div>
             )}
 
@@ -282,17 +277,13 @@ export function ImageSettingsSection(): React.JSX.Element {
                     <GitBranch className="size-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">GitHub 公共仓库</p>
-                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                      新图片会提交到 images/年/月，并在 Markdown 中写入公开 raw 地址。
-                    </p>
+                    <p className="text-sm font-medium text-foreground">{t('settings.public-github-repository')}</p>
+                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{t('settings.new-images-are-committed-to-images-year-month-and-linked-with-public-raw-urls-in-mark')}</p>
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="github-image-repository" className="text-sm font-medium text-foreground">
-                    仓库
-                  </label>
+                  <label htmlFor="github-image-repository" className="text-sm font-medium text-foreground">{t('settings.repository')}</label>
                   <Input
                     id="github-image-repository"
                     value={repository}
@@ -301,9 +292,7 @@ export function ImageSettingsSection(): React.JSX.Element {
                     placeholder="owner/repository"
                     onChange={(event) => setRepository(event.target.value)}
                   />
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    支持 owner/repository 或 https://github.com/owner/repository。
-                  </p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{t('settings.use-owner-repository-or-https-github-com-owner-repository')}</p>
                 </div>
 
                 <div>
@@ -319,13 +308,11 @@ export function ImageSettingsSection(): React.JSX.Element {
                       disabled={isSaving}
                       autoComplete="off"
                       className="pl-9"
-                      placeholder={githubStatus?.hasToken ? '留空则继续使用已保存的 Token' : 'github_pat_…'}
+                      placeholder={githubStatus?.hasToken ? t('settings.leave-blank-to-keep-the-saved-token') : 'github_pat_…'}
                       onChange={(event) => setToken(event.target.value)}
                     />
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    Token 需要目标仓库的 Contents 写入权限，并使用系统安全存储加密保存在本机。
-                  </p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{t('settings.the-token-needs-write-access-to-the-repository-s-contents-and-is-encrypted-locally-us')}</p>
                 </div>
 
                 {githubStatus?.settings && (
@@ -335,8 +322,8 @@ export function ImageSettingsSection(): React.JSX.Element {
                     ) : (
                       <KeyRound className="size-3.5 text-destructive" />
                     )}
-                    {githubStatus.hasToken ? '已连接' : '凭证不可用'}{' '}
-                    {githubStatus.settings.owner}/{githubStatus.settings.repository} · 分支{' '}
+                    {githubStatus.hasToken ? t('settings.connected') : t('settings.credentials-unavailable')}{' '}
+                    {githubStatus.settings.owner}/{githubStatus.settings.repository}{' '}{t('settings.branch')}{' '}
                     {githubStatus.settings.branch}
                   </div>
                 )}
@@ -344,7 +331,7 @@ export function ImageSettingsSection(): React.JSX.Element {
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" disabled={isSaving} onClick={() => void configureGitHub()}>
                     {isSaving ? <LoaderCircle className="animate-spin" /> : <GitBranch />}
-                    {githubStatus?.settings ? '保存并启用' : '连接并启用'}
+                    {githubStatus?.settings ? t('settings.save-and-enable') : t('settings.connect-and-enable')}
                   </Button>
                   {githubStatus?.settings && (
                     <Button
@@ -353,16 +340,14 @@ export function ImageSettingsSection(): React.JSX.Element {
                       disabled={isSaving}
                       onClick={() => void clearGitHub()}
                     >
-                      <Trash2 />
-                      清除配置
-                    </Button>
+                      <Trash2 />{t('settings.clear-configuration')}</Button>
                   )}
                 </div>
               </div>
             )}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground">正在加载图片设置...</p>
+          <p className="mt-3 text-sm text-muted-foreground">{t('settings.loading-image-settings')}</p>
         )}
       </div>
     </div>

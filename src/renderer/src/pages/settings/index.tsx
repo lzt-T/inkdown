@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { useState } from 'react'
 import {
   ArrowLeft,
@@ -11,6 +13,7 @@ import {
   Sun
 } from 'lucide-react'
 import { AboutSettingsSection } from '@/pages/settings/components/AboutSettingsSection'
+import { LanguageSettings } from '@/pages/settings/components/LanguageSettings'
 import { ImageSettingsSection } from '@/pages/settings/components/ImageSettingsSection'
 import { ProxySettingsSection } from '@/pages/settings/components/ProxySettingsSection'
 import { ShortcutSettingsSection } from '@/pages/settings/components/ShortcutSettingsSection'
@@ -48,25 +51,25 @@ interface SettingsCategoryOption {
 const THEME_OPTIONS: ThemeOption[] = [
   {
     value: 'light',
-    label: '亮色',
-    description: '明亮、清晰的写作界面',
+    label: 'settings.light',
+    description: 'settings.a-bright-clear-writing-interface',
     icon: Sun
   },
   {
     value: 'dark',
-    label: '暗色',
-    description: '适合低光环境的深色界面',
+    label: 'settings.dark',
+    description: 'settings.a-dark-interface-for-low-light-environments',
     icon: Moon
   }
 ]
 
 // Settings categories provide a fixed navigation-to-section mapping.
 const SETTINGS_CATEGORIES: SettingsCategoryOption[] = [
-  { value: 'appearance', label: '外观', icon: Palette },
-  { value: 'images', label: '图片', icon: Image },
-  { value: 'network', label: '网络', icon: Network },
-  { value: 'shortcuts', label: '快捷键', icon: Keyboard },
-  { value: 'about', label: '关于', icon: Info }
+  { value: 'appearance', label: 'settings.appearance', icon: Palette },
+  { value: 'images', label: 'settings.images', icon: Image },
+  { value: 'network', label: 'settings.network', icon: Network },
+  { value: 'shortcuts', label: 'settings.keyboard-shortcuts', icon: Keyboard },
+  { value: 'about', label: 'settings.about', icon: Info }
 ]
 
 /** Renders the dedicated application settings workspace. */
@@ -78,6 +81,9 @@ export function SettingsPage({
   onCheckForUpdates,
   onOpenUpdate
 }: SettingsPageProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Current theme controls the selected appearance option.
   const theme = useEditorStore((state) => state.theme)
   // Theme updates reuse the existing persistence flow in App.
@@ -88,13 +94,12 @@ export function SettingsPage({
   const sectionContent: Record<SettingsCategory, React.JSX.Element> = {
     appearance: (
       <div className="max-w-3xl">
-        <h2 className="text-base font-semibold text-foreground">外观</h2>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          选择更适合当前环境的界面主题，修改会立即生效。
-        </p>
+        <h2 className="text-base font-semibold text-foreground">{t('settings.appearance')}</h2>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('settings.choose-a-theme-for-your-environment-changes-apply-immediately')}</p>
 
+        <LanguageSettings />
         <div className="mt-7">
-          <h3 className="text-sm font-medium text-foreground">主题</h3>
+          <h3 className="text-sm font-medium text-foreground">{t('settings.theme')}</h3>
           <div className="mt-3 grid gap-3 @min-[36rem]:grid-cols-2">
             {THEME_OPTIONS.map((option) => {
               // Each icon communicates the ambience of its corresponding theme.
@@ -159,11 +164,11 @@ export function SettingsPage({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        {option.label}
+                        {t(option.label)}
                         {isSelected && <Check className="size-3.5 text-primary" />}
                       </span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {option.description}
+                        {t(option.description)}
                       </span>
                     </span>
                   </span>
@@ -197,18 +202,18 @@ export function SettingsPage({
             size="icon-sm"
             className="rounded-md"
             onClick={onClose}
-            title="返回编辑器"
+            title={t('settings.back-to-editor')}
           >
             <ArrowLeft />
           </Button>
           <div>
-            <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">设置</h1>
-            <p className="mt-1 text-xs text-muted-foreground">调整 Inkdown 的使用体验</p>
+            <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">{t('settings.settings')}</h1>
+            <p className="mt-1 text-xs text-muted-foreground">{t('settings.customize-your-inkdown-experience')}</p>
           </div>
         </div>
 
         <div className="grid gap-8 @min-[42rem]:grid-cols-[11rem_minmax(0,1fr)]">
-          <nav aria-label="设置分类" className="space-y-1">
+          <nav aria-label={t('settings.settings-categories')} className="space-y-1">
             {SETTINGS_CATEGORIES.map((category) => {
               // Category icon follows the fixed navigation configuration.
               const Icon = category.icon
@@ -228,7 +233,7 @@ export function SettingsPage({
                   )}
                 >
                   <Icon className="size-4" />
-                  {category.label}
+                  {t(category.label)}
                 </button>
               )
             })}

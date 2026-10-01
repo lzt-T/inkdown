@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { Download, ExternalLink, LoaderCircle, RotateCw, type LucideIcon } from 'lucide-react'
 import type { AppUpdateState } from '../../../shared/contracts'
 import { Button } from '@/components/ui/button'
@@ -28,14 +30,14 @@ interface UpdateDialogCopy {
 // Dialog copy maps each platform action to its fixed update behavior.
 const UPDATE_DIALOG_COPY: Record<AppUpdateState['action'], UpdateDialogCopy> = {
   download: {
-    titleSuffix: '可用',
-    description: 'macOS 版本需要从 GitHub Releases 下载并手动安装。',
-    primaryLabel: '前往下载'
+    titleSuffix: 'workspace.available',
+    description: 'workspace.download-the-macos-version-from-github-releases-and-install-it-manually',
+    primaryLabel: 'workspace.download'
   },
   install: {
-    titleSuffix: '已准备就绪',
-    description: '更新已下载，重启 Inkdown 后即可完成安装。',
-    primaryLabel: '立即重启'
+    titleSuffix: 'workspace.ready',
+    description: 'workspace.the-update-is-downloaded-restart-inkdown-to-install-it',
+    primaryLabel: 'workspace.restart-now'
   }
 }
 
@@ -54,6 +56,9 @@ export function UpdateDialog({
   onOpenChange,
   onPrimaryAction
 }: UpdateDialogProps): React.JSX.Element | null {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   if (!updateState) return null
 
   // Current action selects the platform-specific title and primary command.
@@ -61,15 +66,15 @@ export function UpdateDialog({
   // Dirty install copy explains the save step before restart.
   const description =
     updateState.action === 'install' && dirtyCount > 0
-      ? `将先保存 ${dirtyCount} 个未保存文档，然后重启 Inkdown 完成安装。`
-      : copy.description
+      ? t('workspace.save-before-update', { count: dirtyCount })
+      : t(copy.description)
   // Primary label names the save step only when it is required.
   const primaryLabel =
-    updateState.action === 'install' && dirtyCount > 0 ? '保存并重启' : copy.primaryLabel
+    updateState.action === 'install' && dirtyCount > 0 ? t('workspace.save-and-restart') : t(copy.primaryLabel)
   // Update icon distinguishes external download from in-place installation.
   const UpdateIcon = UPDATE_ICONS[updateState.action]
   // Working label reflects whether the app is opening a page or saving documents.
-  const workingLabel = updateState.action === 'download' ? '正在打开…' : '正在保存…'
+  const workingLabel = updateState.action === 'download' ? t('workspace.opening') : t('workspace.saving-2')
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -79,14 +84,12 @@ export function UpdateDialog({
             <UpdateIcon className="size-5" />
           </div>
           <DialogHeader className="min-w-0 flex-1 text-left">
-            <DialogTitle>{`Inkdown ${updateState.version} ${copy.titleSuffix}`}</DialogTitle>
+            <DialogTitle>{`Inkdown ${updateState.version} ${t(copy.titleSuffix)}`}</DialogTitle>
             <DialogDescription className="leading-6">{description}</DialogDescription>
           </DialogHeader>
         </div>
         <DialogFooter>
-          <Button variant="outline" disabled={isWorking} onClick={() => onOpenChange(false)}>
-            稍后
-          </Button>
+          <Button variant="outline" disabled={isWorking} onClick={() => onOpenChange(false)}>{t('workspace.later')}</Button>
           <Button disabled={isWorking} onClick={onPrimaryAction}>
             {isWorking ? (
               <LoaderCircle className="animate-spin" />

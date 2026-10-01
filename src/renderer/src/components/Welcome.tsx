@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { FilePlus, FileText, FolderOpen, History } from 'lucide-react'
 import inkdownLogo from '@/assets/inkdown-logo.png'
 import { useEditorStore } from '@/store/editor-store'
@@ -39,6 +41,7 @@ function getRecentPath(path: string): RecentPath {
 
 /** Renders one group of recent files or workspaces. */
 function RecentGroup({ title, items, icon: Icon, onOpen }: RecentGroupProps): React.JSX.Element {
+
   return (
     <section>
       <h3 className="mb-2 text-[11px] font-semibold text-muted-foreground">{title}</h3>
@@ -78,6 +81,9 @@ function RecentGroup({ title, items, icon: Icon, onOpen }: RecentGroupProps): Re
 
 /** Presents the editor entry actions and recent local documents. */
 export function Welcome({ onNewFile }: WelcomeProps): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Recent paths populate the workspace continuation panel.
   const recent = useEditorStore((state) => state.recent)
   // Workspace actions remain delegated to the editor store.
@@ -104,38 +110,33 @@ export function Welcome({ onNewFile }: WelcomeProps): React.JSX.Element {
           />
 
           <h1 className="text-5xl font-semibold tracking-[-0.03em] text-foreground">Inkdown</h1>
-          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
-            一个本地优先的 Typora 风格 Markdown 编辑器。
-          </p>
+          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">{t('workspace.a-local-first-markdown-editor-inspired-by-typora')}</p>
 
           <div className="mt-9 flex flex-wrap gap-2">
             <Button size="sm" className="rounded-md active:translate-y-px" onClick={onNewFile}>
-              <FilePlus /> 新建文件
-            </Button>
+              <FilePlus />{t('workspace.new-file')}</Button>
             <Button
               variant="outline"
               size="sm"
               className="rounded-md bg-card active:translate-y-px"
               onClick={() => void openFileDialog()}
             >
-              <FileText /> 打开文件
-            </Button>
+              <FileText />{t('workspace.open-file')}</Button>
             <Button
               variant="outline"
               size="sm"
               className="rounded-md bg-card active:translate-y-px"
               onClick={() => void openWorkspace()}
             >
-              <FolderOpen /> 打开文件夹
-            </Button>
+              <FolderOpen />{t('workspace.open-folder')}</Button>
           </div>
         </section>
 
         <aside className="border-t pt-7 @min-[52rem]:border-l @min-[52rem]:border-t-0 @min-[52rem]:pl-9 @min-[52rem]:pt-0">
           <div className="flex items-start justify-between border-b pb-4">
             <div>
-              <h2 className="text-base font-semibold text-foreground">最近使用</h2>
-              <p className="mt-1 text-xs text-muted-foreground">继续上一次的写作</p>
+              <h2 className="text-base font-semibold text-foreground">{t('workspace.recent')}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">{t('workspace.continue-where-you-left-off')}</p>
             </div>
             <History className="mt-0.5 size-4 text-primary" />
           </div>
@@ -144,7 +145,7 @@ export function Welcome({ onNewFile }: WelcomeProps): React.JSX.Element {
             <div className="space-y-6 pt-5">
               {recent.files.length > 0 && (
                 <RecentGroup
-                  title="文件"
+                  title={t('workspace.files')}
                   items={recent.files}
                   icon={FileText}
                   onOpen={(path) => void openPath(path)}
@@ -152,7 +153,7 @@ export function Welcome({ onNewFile }: WelcomeProps): React.JSX.Element {
               )}
               {recent.workspaces.length > 0 && (
                 <RecentGroup
-                  title="文件夹"
+                  title={t('workspace.folders')}
                   items={recent.workspaces}
                   icon={FolderOpen}
                   onOpen={(path) => void openWorkspacePath(path)}
@@ -162,10 +163,8 @@ export function Welcome({ onNewFile }: WelcomeProps): React.JSX.Element {
           ) : (
             <div className="flex min-h-44 flex-col items-start justify-center py-6 text-left">
               <History className="mb-4 size-5 text-muted-foreground" />
-              <p className="text-sm font-medium text-foreground">暂无最近内容</p>
-              <p className="mt-1 max-w-52 text-xs leading-5 text-muted-foreground">
-                打开过的文件和文件夹会显示在这里。
-              </p>
+              <p className="text-sm font-medium text-foreground">{t('workspace.no-recent-items')}</p>
+              <p className="mt-1 max-w-52 text-xs leading-5 text-muted-foreground">{t('workspace.files-and-folders-you-open-will-appear-here')}</p>
             </div>
           )}
         </aside>

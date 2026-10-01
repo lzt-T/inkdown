@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { useEffect, useState } from 'react'
 import { LoaderCircle, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,13 +15,16 @@ interface ProxyModeOption {
 
 // Proxy modes retain a stable order in the connection control.
 const PROXY_MODE_OPTIONS: ProxyModeOption[] = [
-  { value: 'system', label: '跟随系统' },
-  { value: 'direct', label: '直连' },
-  { value: 'manual', label: '手动代理' }
+  { value: 'system', label: 'settings.follow-system' },
+  { value: 'direct', label: 'settings.direct' },
+  { value: 'manual', label: 'settings.manual-proxy' }
 ]
 
 /** Renders and applies application-wide network proxy settings. */
 export function ProxySettingsSection(): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Persisted proxy settings provide the comparison baseline for unsaved edits.
   const [proxy, setProxy] = useState<ProxySettings | null>(null)
   // Selected mode can change independently until the user saves it.
@@ -37,7 +42,7 @@ export function ProxySettingsSection(): React.JSX.Element {
   const saveProxy = async (): Promise<void> => {
     if (!proxy || isSaving || !isDirty) return
     if (mode === 'manual' && !server.trim()) {
-      setServerError('请输入代理地址')
+      setServerError(t('settings.enter-a-proxy-address'))
       return
     }
 
@@ -49,12 +54,12 @@ export function ProxySettingsSection(): React.JSX.Element {
       setProxy(state.proxy)
       setMode(state.proxy.mode)
       setServer(state.proxy.server)
-      toast.success('代理设置已应用')
+      toast.success(t('settings.proxy-settings-applied'))
     } catch (error) {
       // Manual-mode failures are shown beside the server field and in the global toast.
       const message = error instanceof Error ? error.message : String(error)
       if (mode === 'manual') setServerError(message)
-      toast.error('代理设置未更新', { description: message })
+      toast.error(t('settings.proxy-settings-were-not-updated'), { description: message })
     } finally {
       setIsSaving(false)
     }
@@ -72,7 +77,7 @@ export function ProxySettingsSection(): React.JSX.Element {
         setServer(state.proxy.server)
       })
       .catch((error) => {
-        toast.error('无法读取代理设置', { description: String(error) })
+        toast.error(t('settings.unable-to-load-proxy-settings'), { description: String(error) })
       })
     return () => {
       mounted = false
@@ -81,18 +86,16 @@ export function ProxySettingsSection(): React.JSX.Element {
 
   return (
     <div className="max-w-3xl">
-      <h2 className="text-base font-semibold text-foreground">网络</h2>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-        仅配置 Inkdown 的更新、GitHub 图床和应用内网络连接。
-      </p>
+      <h2 className="text-base font-semibold text-foreground">{t('settings.network')}</h2>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('settings.configure-network-connections-for-inkdown-updates-github-image-storage-and-in-app-tra')}</p>
 
       <div className="mt-7">
-        <h3 className="text-sm font-medium text-foreground">代理模式</h3>
+        <h3 className="text-sm font-medium text-foreground">{t('settings.proxy-mode')}</h3>
         {proxy ? (
           <div className="mt-3 flex flex-col items-start gap-5">
             <div
               role="group"
-              aria-label="代理模式"
+              aria-label={t('settings.proxy-mode')}
               className="inline-grid grid-cols-3 rounded-md bg-muted p-1"
             >
               {PROXY_MODE_OPTIONS.map((option) => {
@@ -115,7 +118,7 @@ export function ProxySettingsSection(): React.JSX.Element {
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {option.label}
+                    {t(option.label)}
                   </button>
                 )
               })}
@@ -124,9 +127,7 @@ export function ProxySettingsSection(): React.JSX.Element {
             {mode === 'manual' && (
               <div className="w-full max-w-2xl border-y py-5">
                 <div>
-                  <label htmlFor="proxy-server" className="text-sm font-medium text-foreground">
-                    代理服务器
-                  </label>
+                  <label htmlFor="proxy-server" className="text-sm font-medium text-foreground">{t('settings.proxy-server')}</label>
                   <Input
                     id="proxy-server"
                     value={server}
@@ -147,7 +148,7 @@ export function ProxySettingsSection(): React.JSX.Element {
                       serverError ? 'text-destructive' : 'text-muted-foreground'
                     )}
                   >
-                    {serverError ?? '支持 HTTP、HTTPS、SOCKS4 和 SOCKS5，地址必须包含端口。'}
+                    {serverError ?? t('settings.supports-http-https-socks4-and-socks5-an-explicit-port-is-required')}
                   </p>
                 </div>
               </div>
@@ -158,12 +159,10 @@ export function ProxySettingsSection(): React.JSX.Element {
               disabled={isSaving || !isDirty}
               onClick={() => void saveProxy()}
             >
-              {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
-              保存并应用
-            </Button>
+              {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}{t('settings.save-and-apply')}</Button>
           </div>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground">正在加载代理设置...</p>
+          <p className="mt-3 text-sm text-muted-foreground">{t('settings.loading-proxy-settings')}</p>
         )}
       </div>
     </div>

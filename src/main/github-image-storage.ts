@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { randomUUID } from 'crypto'
 import { app, net, safeStorage } from 'electron'
 import { promises as fs } from 'fs'
@@ -53,7 +54,7 @@ async function assertSecureStorageAvailable(): Promise<void> {
   const isPlainTextBackend =
     process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text'
   if (!isAvailable || isPlainTextBackend) {
-    throw new Error('系统安全存储不可用，无法安全保存 GitHub Token')
+    throw new Error(t('native.system-secure-storage-is-unavailable-the-github-token-cannot-be-saved-securely'))
   }
 }
 
@@ -67,7 +68,7 @@ function parseRepository(value: string): { owner: string; repository: string } {
     // Parsed URL enforces the supported HTTPS GitHub.com origin.
     const url = new URL(trimmed)
     if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'github.com') {
-      throw new Error('仅支持 GitHub.com 仓库地址')
+      throw new Error(t('native.only-github-com-repository-urls-are-supported'))
     }
     repositoryPath = url.pathname.replace(/^\/+|\/+$/g, '')
   }
@@ -83,7 +84,7 @@ function parseRepository(value: string): { owner: string; repository: string } {
     !/^[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(owner) ||
     !/^[a-zA-Z0-9._-]+$/.test(repository)
   ) {
-    throw new Error('请输入 owner/repository 或完整 GitHub 仓库地址')
+    throw new Error(t('native.enter-owner-repository-or-a-full-github-repository-url'))
   }
   return { owner, repository }
 }
@@ -92,13 +93,13 @@ function parseRepository(value: string): { owner: string; repository: string } {
 function githubRequestError(status: number): Error {
   // Status mapping avoids leaking remote response bodies or credentials into renderer logs.
   const messages: Record<number, string> = {
-    401: 'GitHub Token 无效，请重新配置',
-    403: 'GitHub 拒绝访问，请确认 Token 具有 Contents 写入权限且未触发限流',
-    404: 'GitHub 仓库或默认分支不存在，或 Token 无权访问',
-    409: 'GitHub 分支发生提交冲突，请稍后重试',
-    422: 'GitHub 拒绝了图片文件，请检查仓库配置后重试'
+    401: t('native.invalid-github-token-configure-it-again'),
+    403: t('native.github-denied-access-check-token-write-access-to-contents-and-rate-limits'),
+    404: t('native.github-repository-or-default-branch-does-not-exist-or-the-token-lacks-access'),
+    409: t('native.github-branch-has-a-commit-conflict-try-again-later'),
+    422: t('native.github-rejected-the-image-check-repository-settings-and-try-again')
   }
-  return new Error(messages[status] ?? `GitHub 请求失败（HTTP ${status}）`)
+  return new Error(messages[status] ?? t('native.github-request-failed-http-value', { v0: status }))
 }
 
 /** Reads and decrypts the locally stored GitHub token. */
@@ -108,7 +109,7 @@ async function readGitHubToken(): Promise<string> {
   const encrypted = await fs.readFile(tokenPath())
   // Decryption result supplies the main-process-only bearer credential.
   const decrypted = await safeStorage.decryptStringAsync(encrypted)
-  if (!decrypted.result) throw new Error('GitHub Token 尚未配置')
+  if (!decrypted.result) throw new Error(t('native.github-token-is-not-configured'))
   if (decrypted.shouldReEncrypt) await writeGitHubToken(decrypted.result)
   return decrypted.result
 }
@@ -153,8 +154,8 @@ export async function configureGitHubImageStorage(
 
   // Typed metadata contains only fields required by the image storage configuration.
   const data = (await response.json()) as GitHubRepositoryResponse
-  if (data.private) throw new Error('首期仅支持公开 GitHub 仓库')
-  if (!data.default_branch) throw new Error('GitHub 仓库没有可用的默认分支')
+  if (data.private) throw new Error(t('native.only-public-github-repositories-are-supported'))
+  if (!data.default_branch) throw new Error(t('native.github-repository-has-no-available-default-branch'))
 
   await writeGitHubToken(token)
   return { ...repository, branch: data.default_branch }
@@ -187,7 +188,7 @@ async function uploadGitHubImageNow(input: {
 }): Promise<ImportImageResult> {
   // Current persisted repository is read for every queued upload.
   const settings = (await loadState()).imageStorage.github
-  if (!settings) throw new Error('请先配置 GitHub 图床')
+  if (!settings) throw new Error(t('native.configure-github-image-storage-first'))
   // Decrypted token remains scoped to this main-process request.
   const token = await readGitHubToken()
   // Unique path prevents accidental replacement and supplies date-based organization.
@@ -213,7 +214,7 @@ async function uploadGitHubImageNow(input: {
   const result = (await response.json()) as GitHubUploadResponse
   // Public raw URL is the portable source written into Markdown.
   const src = result.content?.download_url
-  if (!src) throw new Error('GitHub 未返回可访问的图片地址')
+  if (!src) throw new Error(t('native.github-did-not-return-an-accessible-image-url'))
   return {
     src,
     fileName: basename(imagePath),

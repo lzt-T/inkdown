@@ -24,6 +24,7 @@ const defaultProxy: ProxySettings = {
 }
 // Default persisted state is merged with older state files during loading.
 const defaultState: PersistedState = {
+  language: 'system',
   recent: defaultRecent,
   theme: 'light',
   imageStorage: defaultImageStorage,

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '@/lib/i18n'
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import {
@@ -21,6 +23,9 @@ const ACTIVE_TAB_BACKGROUND = {
 
 /** Renders open documents as a compact editorial tab index. */
 export function TabsBar(): React.JSX.Element | null {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Open documents provide tab labels and dirty state.
   const openDocs = useEditorStore((state) => state.openDocs)
   // Tab order preserves the user's document sequence.
@@ -55,7 +60,7 @@ export function TabsBar(): React.JSX.Element | null {
       <div className="relative flex h-9 shrink-0 items-end bg-panel px-1.5 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:h-px before:bg-border">
         <div
           role="tablist"
-          aria-label="打开的文档"
+          aria-label={t('workspace.open-documents')}
           className="inkdown-tabs-scroll flex min-w-0 flex-1 items-end gap-1 overflow-x-auto overflow-y-hidden"
         >
           {tabOrder.map((key) => {
@@ -92,8 +97,8 @@ export function TabsBar(): React.JSX.Element | null {
                 </button>
                 <button
                   type="button"
-                  aria-label={`关闭 ${doc.name}`}
-                  title={`关闭 ${doc.name}`}
+                  aria-label={t('workspace.close-value', { v0: doc.name })}
+                  title={t('workspace.close-value', { v0: doc.name })}
                   className={cn(
                     'absolute right-1 z-20 flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-[color,background-color,opacity] hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60 group-hover:opacity-100',
                     isActive && 'opacity-100'
@@ -117,15 +122,12 @@ export function TabsBar(): React.JSX.Element | null {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>关闭未保存的文档？</AlertDialogTitle>
+            <AlertDialogTitle>{t('workspace.close-unsaved-document')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDoc?.name ?? '当前文档'} 有未保存的更改，关闭后将丢失。
-            </AlertDialogDescription>
+              {t('workspace.close-unsaved-description', { name: pendingDoc?.name ?? t('workspace.current-document') })}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel variant="outline" size="default">
-              取消
-            </AlertDialogCancel>
+            <AlertDialogCancel variant="outline" size="default">{t('workspace.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               variant="default"
               size="default"
@@ -133,9 +135,7 @@ export function TabsBar(): React.JSX.Element | null {
                 if (pendingClose) closeTab(pendingClose)
                 setPendingClose(null)
               }}
-            >
-              关闭文档
-            </AlertDialogAction>
+            >{t('workspace.close-document')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

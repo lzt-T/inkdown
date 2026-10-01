@@ -1,14 +1,19 @@
+import { t } from './i18n'
 import { app, Menu, type MenuItemConstructorOptions } from 'electron'
 import type { MenuAction } from '../shared/contracts'
 
+/** 根据当前语言构建原生菜单并保留原有角色和快捷键。 */
 export function installApplicationMenu(sendAction: (action: MenuAction) => void): void {
+  // 平台决定保留的系统菜单结构。
   const isMac = process.platform === 'darwin'
 
+  /** 构建发送固定应用命令的菜单项。 */
   const send = (action: MenuAction): MenuItemConstructorOptions => ({
     label: labelFor(action),
     click: () => sendAction(action)
   })
 
+  // 菜单骨架沿用既有业务操作。
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
       ? [
@@ -29,7 +34,7 @@ export function installApplicationMenu(sendAction: (action: MenuAction) => void)
         ]
       : []),
     {
-      label: '文件',
+      label: t('native.files'),
       submenu: [
         { ...send('new-file'), accelerator: 'CmdOrCtrl+N' },
         { ...send('open-file'), accelerator: 'CmdOrCtrl+O' },
@@ -43,7 +48,7 @@ export function installApplicationMenu(sendAction: (action: MenuAction) => void)
       ]
     },
     {
-      label: '编辑',
+      label: t('native.edit'),
       submenu: [
         { role: 'undo', accelerator: 'CmdOrCtrl+Z' },
         { role: 'redo', accelerator: 'CmdOrCtrl+Shift+Z' },
@@ -57,7 +62,7 @@ export function installApplicationMenu(sendAction: (action: MenuAction) => void)
       ]
     },
     {
-      label: '视图',
+      label: t('native.view'),
       submenu: [
         { ...send('toggle-sidebar'), accelerator: 'CmdOrCtrl+B' },
         { ...send('toggle-outline'), accelerator: 'CmdOrCtrl+Shift+E' },
@@ -72,7 +77,7 @@ export function installApplicationMenu(sendAction: (action: MenuAction) => void)
       ]
     },
     {
-      label: '窗口',
+      label: t('native.window'),
       submenu: [
         { role: 'minimize' },
         { role: 'zoom' },
@@ -81,21 +86,32 @@ export function installApplicationMenu(sendAction: (action: MenuAction) => void)
     }
   ]
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+  Menu.setApplicationMenu(Menu.buildFromTemplate(localizeRoles(template)))
 }
 
+/** 为应用控制的系统角色补充当前语言的标签。 */
+function localizeRoles(items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] {
+  return items.map((item) => ({
+    ...item,
+    ...(item.role ? { label: t(`native.role-${item.role}`, { app: app.name }) } : {}),
+    ...(Array.isArray(item.submenu) ? { submenu: localizeRoles(item.submenu) } : {})
+  }))
+}
+
+/** 返回当前语言对应的应用命令标签。 */
 function labelFor(action: MenuAction): string {
+  // 命令键使用固定映射，翻译在菜单构建时读取。
   const labels: Record<MenuAction, string> = {
-    'open-workspace': '打开文件夹',
-    'open-file': '打开文件',
-    'new-file': '新建文件',
-    save: '保存',
-    'save-as': '另存为',
-    'close-tab': '关闭标签页',
-    'toggle-sidebar': '切换侧栏',
-    'toggle-outline': '切换大纲',
-    'toggle-source': '切换源码模式',
-    'toggle-theme': '切换主题'
+    'open-workspace': t('native.open-folder'),
+    'open-file': t('native.open-file'),
+    'new-file': t('native.new-file'),
+    save: t('native.save'),
+    'save-as': t('native.save-as'),
+    'close-tab': t('native.close-tab'),
+    'toggle-sidebar': t('native.toggle-sidebar'),
+    'toggle-outline': t('native.toggle-outline'),
+    'toggle-source': t('native.toggle-source-mode'),
+    'toggle-theme': t('native.toggle-theme')
   }
   return labels[action]
 }

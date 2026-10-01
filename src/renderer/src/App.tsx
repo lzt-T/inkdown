@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { initialSettings, t } from '@/lib/i18n'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { EditorPane } from '@/components/EditorPane'
@@ -22,12 +24,15 @@ type AppSurface = 'editor' | 'settings'
 
 // 固定页签配置集中定义侧栏视图与显示文案。
 const SIDEBAR_TABS = [
-  { value: 'files', label: '文件' },
-  { value: 'outline', label: '大纲' }
+  { value: 'files', label: 'workspace.files' },
+  { value: 'outline', label: 'workspace.outline' }
 ] as const
 
 /** Coordinates the application shell, editor workspace, and settings surface. */
 function App(): React.JSX.Element {
+  // 订阅语言变更，使当前界面文案同步刷新。
+  useTranslation()
+
   // Shell-local navigation preserves editor state without expanding the shared store.
   const [activeSurface, setActiveSurface] = useState<AppSurface>('editor')
   // 顶部、欢迎页入口与文件树共用唯一的树内命名状态。
@@ -83,7 +88,7 @@ function App(): React.JSX.Element {
       kind: 'create-file',
       parent: store.workspaceRoot,
       value: getAvailableName(
-        CREATE_DEFAULT_NAMES['create-file'],
+        t(CREATE_DEFAULT_NAMES['create-file']),
         store.treeNodes[store.workspaceRoot] ?? []
       ),
       depth: 0,
@@ -110,7 +115,7 @@ function App(): React.JSX.Element {
     /** 恢复设置与历史工作区，再允许消费系统文件请求。 */
     const initializeWorkspace = async (): Promise<void> => {
       // 设置快照决定本次启动需要恢复的历史根目录。
-      const settings = await window.api.settings.get()
+      const settings = await initialSettings
       if (!mounted) return
       useEditorStore.getState().setTheme(settings.theme)
       useEditorStore.getState().setRecent(settings.recent)
@@ -256,7 +261,7 @@ function App(): React.JSX.Element {
                   <div className="flex h-full flex-col">
                     <div
                       role="tablist"
-                      aria-label="侧栏导航"
+                      aria-label={t('workspace.sidebar-navigation')}
                       className="flex h-9 shrink-0 items-center border-b px-2"
                     >
                       {SIDEBAR_TABS.map((tab) => {
@@ -276,7 +281,7 @@ function App(): React.JSX.Element {
                             )}
                             onClick={() => setSidebarView(tab.value)}
                           >
-                            {tab.label}
+                            {t(tab.label)}
                           </button>
                         )
                       })}

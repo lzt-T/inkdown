@@ -19,10 +19,10 @@ export type EditingState =
     }
   | { kind: 'create-folder'; parent: string; value: string; depth: number }
 
-// 新建类型映射到对应的中文默认名称。
+// 新建类型映射到文案键，创建操作发生时才解析当前语言。
 export const CREATE_DEFAULT_NAMES: Record<'create-file' | 'create-folder', string> = {
-  'create-file': '未命名.md',
-  'create-folder': '新建文件夹'
+  'create-file': 'workspace.untitled-md',
+  'create-folder': 'workspace.new-folder'
 }
 
 /** 返回目录中尚未占用的默认名称。 */

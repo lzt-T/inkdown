@@ -1,3 +1,5 @@
+import type { AppLocale, LanguagePreference } from './localization'
+
 export type ThemeMode = 'light' | 'dark'
 export type EditorMode = 'wysiwyg' | 'source'
 export type ImageStorageMode = 'relative' | 'global' | 'github'
@@ -83,11 +85,17 @@ export interface RecentState {
 }
 
 export interface PersistedState {
+  language: LanguagePreference
   recent: RecentState
   theme: ThemeMode
   imageStorage: ImageStorageSettings
   proxy: ProxySettings
   windowBounds: { width: number; height: number; x?: number; y?: number } | null
+}
+
+/** 设置读取结果附带本次解析的实际语言。 */
+export interface SettingsSnapshot extends PersistedState {
+  readonly resolvedLocale: AppLocale
 }
 
 export interface AppUpdateState {
