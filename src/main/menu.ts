@@ -43,6 +43,8 @@ export function installApplicationMenu(sendAction: (action: MenuAction) => void)
         { ...send('save'), accelerator: 'CmdOrCtrl+S' },
         { ...send('save-as'), accelerator: 'CmdOrCtrl+Shift+S' },
         { type: 'separator' },
+        { ...send('open-settings'), accelerator: 'CmdOrCtrl+,' },
+        { type: 'separator' },
         { ...send('close-tab'), accelerator: 'CmdOrCtrl+W' },
         ...(isMac ? [] : [{ type: 'separator' as const }, { role: 'quit' as const }])
       ]
@@ -111,7 +113,8 @@ function labelFor(action: MenuAction): string {
     'toggle-sidebar': t('native.toggle-sidebar'),
     'toggle-outline': t('native.toggle-outline'),
     'toggle-source': t('native.toggle-source-mode'),
-    'toggle-theme': t('native.toggle-theme')
+    'toggle-theme': t('native.toggle-theme'),
+    'open-settings': t('native.settings')
   }
   return labels[action]
 }

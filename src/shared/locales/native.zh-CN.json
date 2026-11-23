@@ -78,5 +78,6 @@
   "role-minimize": "最小化",
   "role-zoom": "缩放窗口",
   "role-front": "全部置于前方",
-  "role-close": "关闭"
+  "role-close": "关闭",
+  "settings": "设置"
 }

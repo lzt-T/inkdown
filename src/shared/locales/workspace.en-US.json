@@ -22,8 +22,8 @@
   "folder-name": "Folder name",
   "unable-to-load-the-file-s-directory": "Unable to load the file's directory",
   "operation-failed": "Operation failed",
-  "document-is-unsaved-the-image-will-be-embedded-as-a-data-url": "Document is unsaved; the image will be embedded as a Data URL",
-  "image-import-failed-embedded-as-a-data-url-instead": "Image import failed; embedded as a Data URL instead",
+  "document-is-unsaved-the-image-will-be-embedded-as-a-data-url": "Document is unsaved; the image has been embedded directly in the document",
+  "image-import-failed-embedded-as-a-data-url-instead": "Image import failed; embedded directly in the document instead",
   "image-upload-failed-no-image-inserted": "Image upload failed; no image inserted",
   "collapse-2": "Collapse",
   "untitled": "Untitled",
@@ -101,5 +101,16 @@
   "close-unsaved-description": "{{name}} has unsaved changes that will be lost when closed.",
   "notifications": "Notifications",
   "close-notification": "Close notification",
-  "delete-description": "Move “{{name}}” to Trash?"
+  "delete-description": "Move “{{name}}” to Trash?",
+  "save-as": "Save As",
+  "save-and-close": "Save and Close",
+  "discard-and-close": "Close Without Saving",
+  "missing-file-banner": "This file was moved or deleted externally. Autosave is paused.",
+  "resave-to-original": "Re-save to Original",
+  "toggle-theme": "Toggle Theme",
+  "remove-recent-entry": "Remove {{name}} from recent",
+  "remove-from-recent": "Remove from recent",
+  "open-folder-hint": "Choose a local folder to browse or create Markdown documents.",
+  "collapse-all": "Collapse All",
+  "close-folder": "Close Folder"
 }

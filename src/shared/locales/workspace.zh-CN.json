@@ -22,8 +22,8 @@
   "folder-name": "文件夹名称",
   "unable-to-load-the-file-s-directory": "无法加载文件所在目录",
   "operation-failed": "操作失败",
-  "document-is-unsaved-the-image-will-be-embedded-as-a-data-url": "文档尚未保存，图片将以 Data URL 嵌入",
-  "image-import-failed-embedded-as-a-data-url-instead": "图片导入失败，已回退为 Data URL",
+  "document-is-unsaved-the-image-will-be-embedded-as-a-data-url": "文档尚未保存，图片已直接内嵌在文档中",
+  "image-import-failed-embedded-as-a-data-url-instead": "图片导入失败，已改为内嵌到文档中",
   "image-upload-failed-no-image-inserted": "图片上传失败，未插入图片",
   "collapse-2": "收起",
   "untitled": "无标题",
@@ -101,5 +101,16 @@
   "close-unsaved-description": "{{name}} 有未保存的更改，关闭后将丢失。",
   "notifications": "通知",
   "close-notification": "关闭通知",
-  "delete-description": "确定要将“{{name}}”移至回收站吗？"
+  "delete-description": "确定要将“{{name}}”移至回收站吗？",
+  "save-as": "另存为",
+  "save-and-close": "保存并关闭",
+  "discard-and-close": "不保存并关闭",
+  "missing-file-banner": "该文件已在外部被移动或删除，自动保存已暂停。",
+  "resave-to-original": "重新保存到原路径",
+  "toggle-theme": "切换主题",
+  "remove-recent-entry": "从最近使用中移除 {{name}}",
+  "remove-from-recent": "移除记录",
+  "open-folder-hint": "选择一个本地文件夹以浏览或新建 Markdown 文档。",
+  "collapse-all": "全部折叠",
+  "close-folder": "关闭文件夹"
 }

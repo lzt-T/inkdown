@@ -78,5 +78,6 @@
   "role-minimize": "Minimize",
   "role-zoom": "Zoom Window",
   "role-front": "Bring All to Front",
-  "role-close": "Close"
+  "role-close": "Close",
+  "settings": "Settings"
 }

@@ -55,30 +55,23 @@ export function SourceEditor({
             backgroundColor: 'var(--background)',
             color: 'var(--foreground)'
           },
-          '.cm-scroller': {
-            fontFamily: 'var(--font-mono)',
-            lineHeight: '1.75'
-          },
           '.cm-content': {
-            maxWidth: '820px',
-            margin: '0 auto',
-            padding: '36px 24px 120px',
             caretColor: 'var(--foreground)'
           },
           '.cm-gutters': {
             backgroundColor: 'var(--background)',
             color: 'var(--muted-foreground)',
-            borderRight: '1px solid var(--border)'
+            borderRight: '1px solid color-mix(in srgb, var(--border) 60%, transparent)'
           },
           '.cm-activeLine': {
-            backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)'
+            backgroundColor: 'color-mix(in srgb, var(--foreground) 4%, transparent)'
           },
           '.cm-activeLineGutter': {
-            backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)',
+            backgroundColor: 'color-mix(in srgb, var(--foreground) 6%, transparent)',
             color: 'var(--foreground)'
           },
           '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-            backgroundColor: 'color-mix(in srgb, var(--primary) 18%, transparent)'
+            backgroundColor: 'color-mix(in srgb, var(--ring) 20%, transparent)'
           }
         },
         { dark: theme === 'dark' }
@@ -141,7 +134,6 @@ export function SourceEditor({
         extensions={[
           markdown(),
           EditorView.lineWrapping,
-          themeExtension,
           listenerExtension,
           EditorState.phrases.of(i18n.resolvedLanguage === 'zh-CN' ? sourceEditorPhrases : {})
         ]}

@@ -92,5 +92,11 @@
   "customize-your-inkdown-experience": "Customize your Inkdown experience",
   "settings-categories": "Settings categories",
   "language": "Language",
-  "language-save-failed": "Language settings were not updated"
+  "language-save-failed": "Language settings were not updated",
+  "currently-active": "Currently active",
+  "relative-directory-saved": "Relative directory saved",
+  "github-token-label": "Fine-grained Token",
+  "retry": "Retry",
+  "clear-github-confirm-title": "Clear GitHub image storage configuration?",
+  "clear-github-confirm-description": "This will remove the saved repository info and encrypted token from this device and switch back to relative storage."
 }

@@ -124,6 +124,7 @@ export type MenuAction =
   | 'toggle-outline'
   | 'toggle-source'
   | 'toggle-theme'
+  | 'open-settings'
 
 // Markdown extensions define files recognized by workspace scanning and dialogs.
 export const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown'])

@@ -92,5 +92,11 @@
   "customize-your-inkdown-experience": "调整 Inkdown 的使用体验",
   "settings-categories": "设置分类",
   "language": "语言",
-  "language-save-failed": "语言设置未更新"
+  "language-save-failed": "语言设置未更新",
+  "currently-active": "当前生效",
+  "relative-directory-saved": "相对目录已保存",
+  "github-token-label": "GitHub 访问令牌（Fine-grained PAT）",
+  "retry": "重试",
+  "clear-github-confirm-title": "清除 GitHub 图床配置？",
+  "clear-github-confirm-description": "将移除本机保存的仓库信息与加密访问令牌，并恢复为相对文档目录保存。"
 }

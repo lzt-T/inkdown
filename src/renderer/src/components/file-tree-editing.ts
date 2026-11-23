@@ -17,7 +17,7 @@ export type EditingState =
       openAfterCreate?: boolean
       shouldFocus?: boolean
     }
-  | { kind: 'create-folder'; parent: string; value: string; depth: number }
+  | { kind: 'create-folder'; parent: string; value: string; depth: number; shouldFocus?: boolean }
 
 // 新建类型映射到文案键，创建操作发生时才解析当前语言。
 export const CREATE_DEFAULT_NAMES: Record<'create-file' | 'create-folder', string> = {

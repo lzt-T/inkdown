@@ -19,22 +19,22 @@ function Toaster({ style, toastOptions, ...props }: ToasterProps): React.JSX.Ele
       className="toaster group"
       containerAriaLabel={t('workspace.notifications')}
       icons={{
-        success: <CircleCheckIcon className="size-4 text-primary" />,
-        info: <InfoIcon className="size-4 text-primary" />,
-        warning: <TriangleAlertIcon className="size-4 text-primary" />,
+        success: <CircleCheckIcon className="size-4 text-success" />,
+        info: <InfoIcon className="size-4 text-info" />,
+        warning: <TriangleAlertIcon className="size-4 text-warning" />,
         error: <OctagonXIcon className="size-4 text-destructive" />,
-        loading: <Loader2Icon className="size-4 animate-spin text-primary" />
+        loading: <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
       }}
       toastOptions={{
         ...toastOptions,
         closeButtonAriaLabel: t('workspace.close-notification'),
         classNames: {
-          toast: '!border-border !bg-popover !pr-12 !text-popover-foreground',
-          description: '!text-muted-foreground',
+          toast: 'border-border! bg-popover! pr-12! text-popover-foreground!',
+          description: 'text-muted-foreground!',
           actionButton:
-            '!bg-primary !text-primary-foreground hover:!bg-primary/90 focus-visible:!ring-2 focus-visible:!ring-ring/50',
+            'bg-primary! text-primary-foreground! hover:bg-primary/90! focus-visible:ring-2! focus-visible:ring-ring/50!',
           closeButton:
-            '!top-2 !border-border !bg-popover !text-muted-foreground hover:!bg-accent hover:!text-accent-foreground focus-visible:!ring-2 focus-visible:!ring-ring/50',
+            'top-2! border-border! bg-popover! text-muted-foreground! hover:bg-accent! hover:text-accent-foreground! focus-visible:ring-2! focus-visible:ring-ring/50!',
           ...toastOptions?.classNames
         }
       }}

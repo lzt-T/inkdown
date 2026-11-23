@@ -7,6 +7,8 @@ export default defineConfig({
   main: {},
   preload: {},
   renderer: {
+    // 设置开发时渲染进程的默认端口。
+    server: { port: 5181 },
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),

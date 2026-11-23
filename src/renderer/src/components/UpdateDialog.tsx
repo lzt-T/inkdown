@@ -80,7 +80,7 @@ export function UpdateDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={!isWorking} className="sm:max-w-md">
         <div className="flex items-start gap-4">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-info/12 text-info">
             <UpdateIcon className="size-5" />
           </div>
           <DialogHeader className="min-w-0 flex-1 text-left">

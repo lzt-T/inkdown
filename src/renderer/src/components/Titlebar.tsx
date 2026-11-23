@@ -5,14 +5,13 @@ import {
   Code2,
   Download,
   FilePlus,
-  FileText,
-  FolderOpen,
   Minus,
+  Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  Save,
   Settings,
   Square,
+  Sun,
   X
 } from 'lucide-react'
 import type { AppUpdateDownloadProgress, AppUpdateState } from '../../../shared/contracts'
@@ -20,6 +19,7 @@ import inkdownLogo from '@/assets/inkdown-logo.png'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatShortcut, IS_MAC } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
 
@@ -46,6 +46,7 @@ interface TitlebarProps {
 
 interface TitlebarActionProps {
   label: string
+  shortcut?: string
   children: ReactNode
   className?: string
   disabled?: boolean
@@ -60,7 +61,6 @@ interface DownloadProgressIconProps {
 
 /** Renders download progress as a compact circular titlebar indicator. */
 function DownloadProgressIcon({ percent }: DownloadProgressIconProps): React.JSX.Element {
-
   // Dash offset reveals the completed portion clockwise from the top.
   const dashOffset = DOWNLOAD_PROGRESS_CIRCUMFERENCE * (1 - percent / 100)
 
@@ -91,9 +91,29 @@ function DownloadProgressIcon({ percent }: DownloadProgressIconProps): React.JSX
   )
 }
 
+/** 渲染桌面端窗口还原状态（双层重叠方框）图标，避免单一正方形旋转无辨识度。 */
+function RestoreWindowIcon(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.35"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="size-3.5"
+    >
+      <path d="M5.5 4V3a1 1 0 0 1 1-1H13a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-1" />
+      <rect x="2" y="5" width="8.5" height="8.5" rx="1" />
+    </svg>
+  )
+}
+
 /** Renders one labeled titlebar action with consistent interaction states. */
 function TitlebarAction({
   label,
+  shortcut,
   children,
   className,
   disabled,
@@ -101,7 +121,6 @@ function TitlebarAction({
   suppressHoverAfterClick,
   onClick
 }: TitlebarActionProps): React.JSX.Element {
-
   // 受控状态确保窗口隐藏前能够主动关闭提示。
   const [isTooltipOpen, setIsTooltipOpen] = useState(false)
   // 最小化恢复前隐藏由静止指针保留的悬停背景。
@@ -136,6 +155,8 @@ function TitlebarAction({
     onClick?.()
   }
 
+  const accessibleLabel = shortcut ? `${label} (${shortcut})` : label
+
   return (
     <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
       <TooltipTrigger asChild onPointerMove={handlePointerMove}>
@@ -144,12 +165,12 @@ function TitlebarAction({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label={label}
+            aria-label={accessibleLabel}
             aria-pressed={isActive === undefined ? undefined : isActive}
             disabled={disabled}
             className={cn(
               'h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:translate-y-px active:bg-selected',
-              isActive && 'bg-selected text-primary',
+              isActive && 'bg-selected text-foreground',
               className,
               isHoverSuppressed && 'hover:bg-transparent dark:hover:bg-transparent'
             )}
@@ -159,8 +180,13 @@ function TitlebarAction({
           </Button>
         </span>
       </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={6}>
-        {label}
+      <TooltipContent side="bottom" sideOffset={6} className="flex items-center gap-2">
+        <span>{label}</span>
+        {shortcut && (
+          <kbd className="rounded bg-background/15 px-1.5 py-0.5 font-sans text-[10px] font-medium text-background/85">
+            {shortcut}
+          </kbd>
+        )}
       </TooltipContent>
     </Tooltip>
   )
@@ -183,13 +209,13 @@ export function Titlebar({
   const {
     activeKey,
     openDocs,
+    tabOrder,
     sidebarOpen,
     mode,
+    theme,
     toggleSidebar,
     toggleMode,
-    openWorkspace,
-    openFileDialog,
-    saveActive
+    toggleTheme
   } = useEditorStore()
   // Maximized state selects the correct native window affordance.
   const [maximized, setMaximized] = useState(false)
@@ -197,18 +223,15 @@ export function Titlebar({
   const activeDoc = activeKey ? openDocs[activeKey] : null
   // Dirty state adds an unsaved indicator beside the document title.
   const dirty = activeDoc ? activeDoc.rawMarkdown !== activeDoc.savedRawMarkdown : false
-
-  /** Opens the file picker and restores the editor workspace. */
-  const handleOpenFile = (): void => {
-    onReturnToEditor()
-    void openFileDialog()
-  }
-
-  /** Opens the workspace picker and restores the editor workspace. */
-  const handleOpenWorkspace = (): void => {
-    onReturnToEditor()
-    void openWorkspace()
-  }
+  // 多标签页模式下 TabsBar 与文件树已展示文件名和目录名，顶栏居中留白减少冗余。
+  const isSingleDocument = tabOrder.length === 1
+  const centerTitle = isSettingsOpen
+    ? t('workspace.settings')
+    : isSingleDocument
+      ? (activeDoc?.name ?? 'Inkdown')
+      : tabOrder.length > 1
+        ? ''
+        : 'Inkdown'
 
   useEffect(() => {
     // Mounted guard prevents stale native window updates.
@@ -224,77 +247,100 @@ export function Titlebar({
     }
   }, [])
 
-  // macOS reserves toolbar space for native traffic-light controls.
-  const isMac = navigator.userAgent.includes('Mac')
-
   return (
-    <header className="app-drag flex h-10 shrink-0 items-center border-b bg-panel px-2 text-muted-foreground">
-      <div className={cn('flex min-w-0 items-center gap-0.5', isMac && 'pl-16')}>
+    <header className="app-drag flex h-10 shrink-0 items-center border-b bg-panel px-2.5 text-muted-foreground">
+      <div className={cn('flex min-w-0 items-center gap-0.5', IS_MAC && 'pl-16')}>
         <img
           src={inkdownLogo}
           alt=""
           aria-hidden="true"
           draggable={false}
-          className="pointer-events-none mx-0.5 size-4.5 shrink-0 select-none opacity"
+          className="pointer-events-none mx-1 size-4.5 shrink-0 select-none"
         />
-        <Separator orientation="vertical" className="mx-1 h-4" />
-        <TitlebarAction label={t('workspace.toggle-sidebar')} isActive={sidebarOpen} onClick={toggleSidebar}>
-          {sidebarOpen ? <PanelLeftOpen /> : <PanelLeftClose />}
-        </TitlebarAction>
-        <Separator orientation="vertical" className="mx-1.5 h-4" />
-        <TitlebarAction label={t('workspace.new-file')} onClick={onNewFile}>
-          <FilePlus />
-        </TitlebarAction>
-        <TitlebarAction label={t('workspace.open-file')} onClick={handleOpenFile}>
-          <FileText />
-        </TitlebarAction>
-        <TitlebarAction label={t('workspace.open-folder')} onClick={handleOpenWorkspace}>
-          <FolderOpen />
-        </TitlebarAction>
-        <TitlebarAction label={t('workspace.save')} disabled={!activeDoc} onClick={() => void saveActive()}>
-          <Save />
-        </TitlebarAction>
+        {!isSettingsOpen && (
+          <>
+            <Separator orientation="vertical" className="mx-1 h-4" />
+            <TitlebarAction
+              label={t('workspace.toggle-sidebar')}
+              shortcut={formatShortcut(['B'])}
+              isActive={sidebarOpen}
+              onClick={toggleSidebar}
+            >
+              {sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+            </TitlebarAction>
+            <TitlebarAction
+              label={t('workspace.new-file')}
+              shortcut={formatShortcut(['N'])}
+              onClick={onNewFile}
+            >
+              <FilePlus />
+            </TitlebarAction>
+          </>
+        )}
       </div>
 
       <div className="mx-4 flex min-w-0 flex-1 items-center justify-center gap-2">
-        <span className="truncate text-xs font-medium text-foreground">
-          {isSettingsOpen ? t('workspace.settings') : (activeDoc?.name ?? 'Inkdown')}
-        </span>
-        {!isSettingsOpen && dirty && <span className="text-[11px] text-primary">{t('workspace.unsaved')}</span>}
+        <span className="truncate text-xs font-medium text-foreground">{centerTitle}</span>
+        {!isSettingsOpen && isSingleDocument && dirty && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-info/12 px-2 py-0.5 text-[11px] font-medium text-info"
+            title={t('workspace.unsaved')}
+          >
+            <span className="size-1.5 rounded-full bg-info" aria-hidden="true" />
+            {t('workspace.unsaved')}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-0.5">
-        <TitlebarAction label={t('workspace.toggle-source-mode')} isActive={mode === 'source'} onClick={toggleMode}>
-          <Code2 />
-        </TitlebarAction>
-        {downloadProgress ? (
-          <TitlebarAction
-            label={t('workspace.downloading-value', { v0: downloadProgress.percent })}
-            className="text-primary disabled:opacity-100"
-            disabled
-          >
-            <DownloadProgressIcon percent={downloadProgress.percent} />
-          </TitlebarAction>
-        ) : updateState ? (
-          <TitlebarAction
-            label={t(UPDATE_ACTION_LABELS[updateState.action])}
-            className="relative text-primary hover:text-primary"
-            onClick={onOpenUpdate}
-          >
-            <Download />
-            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary ring-2 ring-panel" />
-          </TitlebarAction>
-        ) : null}
-        <Separator orientation="vertical" className="mx-1.5 h-4" />
+        {!isSettingsOpen && (
+          <>
+            <TitlebarAction
+              label={t('workspace.toggle-source-mode')}
+              shortcut={formatShortcut(['/'])}
+              isActive={mode === 'source'}
+              onClick={toggleMode}
+            >
+              <Code2 />
+            </TitlebarAction>
+            <TitlebarAction
+              label={t('workspace.toggle-theme')}
+              shortcut={formatShortcut(['Shift', 'T'])}
+              onClick={toggleTheme}
+            >
+              {theme === 'dark' ? <Sun /> : <Moon />}
+            </TitlebarAction>
+            {downloadProgress ? (
+              <TitlebarAction
+                label={t('workspace.downloading-value', { v0: downloadProgress.percent })}
+                className="text-info disabled:opacity-100"
+                disabled
+              >
+                <DownloadProgressIcon percent={downloadProgress.percent} />
+              </TitlebarAction>
+            ) : updateState ? (
+              <TitlebarAction
+                label={t(UPDATE_ACTION_LABELS[updateState.action])}
+                className="relative text-info hover:text-info"
+                onClick={onOpenUpdate}
+              >
+                <Download />
+                <span className="absolute top-1 right-1 size-1.5 rounded-full bg-info ring-2 ring-panel" />
+              </TitlebarAction>
+            ) : null}
+            <Separator orientation="vertical" className="mx-1 h-4" />
+          </>
+        )}
         <TitlebarAction
           label={isSettingsOpen ? t('workspace.back-to-editor') : t('workspace.open-settings')}
+          shortcut={isSettingsOpen ? 'Esc' : formatShortcut([','])}
           isActive={isSettingsOpen}
           onClick={isSettingsOpen ? onReturnToEditor : onOpenSettings}
         >
           <Settings />
         </TitlebarAction>
 
-        {!isMac && (
+        {!IS_MAC && (
           <>
             <Separator orientation="vertical" className="mx-1 h-4" />
             <TitlebarAction
@@ -308,11 +354,11 @@ export function Titlebar({
               label={maximized ? t('workspace.restore') : t('workspace.maximize')}
               onClick={() => void window.api.window.toggleMaximize()}
             >
-              <Square className={cn(maximized && 'rotate-180')} />
+              {maximized ? <RestoreWindowIcon /> : <Square className="size-3.5" />}
             </TitlebarAction>
             <TitlebarAction
               label={t('workspace.close')}
-              className="hover:bg-destructive hover:text-white dark:hover:bg-destructive"
+              className="hover:bg-destructive hover:text-destructive-foreground dark:hover:bg-destructive"
               onClick={() => void window.api.window.close()}
             >
               <X />

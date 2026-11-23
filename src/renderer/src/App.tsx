@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { initialSettings, t } from '@/lib/i18n'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { EditorPane } from '@/components/EditorPane'
 import { FileTree } from '@/components/FileTree'
@@ -10,14 +10,25 @@ import {
   type EditingState
 } from '@/components/file-tree-editing'
 import { OutlinePanel } from '@/components/OutlinePanel'
-import { SettingsPage } from '@/pages/settings'
 import { StatusBar } from '@/components/StatusBar'
 import { Titlebar } from '@/components/Titlebar'
 import { UpdateDialog } from '@/components/UpdateDialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 import { useAppUpdater } from '@/hooks/useAppUpdater'
-import { cn } from '@/lib/utils'
 import { parseOutline } from '@/lib/outline'
+import { cn } from '@/lib/utils'
+import { SettingsPage } from '@/pages/settings'
 import { useEditorStore } from '@/store/editor-store'
 
 type AppSurface = 'editor' | 'settings'
@@ -37,6 +48,12 @@ function App(): React.JSX.Element {
   const [activeSurface, setActiveSurface] = useState<AppSurface>('editor')
   // 顶部、欢迎页入口与文件树共用唯一的树内命名状态。
   const [treeEditing, setTreeEditing] = useState<EditingState | null>(null)
+  // 统一承接顶栏快捷键与标签页关闭触发的未保存确认状态。
+  const [pendingCloseKey, setPendingCloseKey] = useState<string | null>(null)
+  // 保存并关闭操作进行时防止重复点击。
+  const [isClosingSave, setIsClosingSave] = useState(false)
+  // 侧栏分段按钮引用用于支持左右方向键切换焦点。
+  const sidebarTabRefs = useRef<Partial<Record<(typeof SIDEBAR_TABS)[number]['value'], HTMLButtonElement | null>>>({})
   // Theme state controls renderer styling and native window persistence.
   const theme = useEditorStore((state) => state.theme)
   // Panel visibility remains shared editor state.
@@ -47,6 +64,8 @@ function App(): React.JSX.Element {
   const setSidebarView = useEditorStore((state) => state.setSidebarView)
   // Active document key selects document-specific shell data.
   const activeKey = useEditorStore((state) => state.activeKey)
+  // Open documents supply pending close confirmation copy.
+  const openDocs = useEditorStore((state) => state.openDocs)
   // Active Markdown drives outline parsing and autosave.
   const activeRawMarkdown = useEditorStore((state) =>
     activeKey ? (state.openDocs[activeKey]?.rawMarkdown ?? null) : null
@@ -69,10 +88,22 @@ function App(): React.JSX.Element {
   const updater = useAppUpdater()
 
   /** Opens the dedicated settings workspace. */
-  const openSettings = (): void => setActiveSurface('settings')
+  const openSettings = useCallback((): void => setActiveSurface('settings'), [])
 
   /** Restores the mounted editor workspace. */
-  const returnToEditor = (): void => setActiveSurface('editor')
+  const returnToEditor = useCallback((): void => setActiveSurface('editor'), [])
+
+  /** 统一校验脏状态并安全关闭指定标签页，避免快捷键绕过防丢稿确认。 */
+  const requestCloseTab = useCallback((key: string): void => {
+    const store = useEditorStore.getState()
+    const doc = store.openDocs[key]
+    if (!doc) return
+    if (doc.rawMarkdown !== doc.savedRawMarkdown) {
+      setPendingCloseKey(key)
+      return
+    }
+    store.closeTab(key)
+  }, [])
 
   /** 按当前工作区启动新建流程，保持传给记忆化编辑区的回调引用稳定。 */
   const handleNewFile = useCallback((): void => {
@@ -97,6 +128,46 @@ function App(): React.JSX.Element {
     })
   }, [])
 
+  /** 保存待关闭文档，仅在写入成功后关闭对应标签页。 */
+  const handleSaveAndClosePendingTab = async (): Promise<void> => {
+    if (!pendingCloseKey || isClosingSave) return
+    const store = useEditorStore.getState()
+    const doc = store.openDocs[pendingCloseKey]
+    if (!doc) {
+      setPendingCloseKey(null)
+      return
+    }
+    setIsClosingSave(true)
+    try {
+      let saved = false
+      if (!doc.diskPath || doc.isMissingOnDisk) {
+        if (store.activeKey !== pendingCloseKey) store.activateTab(pendingCloseKey)
+        saved = await useEditorStore.getState().saveActiveAs()
+      } else {
+        saved = await store.saveDocument(pendingCloseKey, true)
+      }
+      if (saved) {
+        useEditorStore.getState().closeTab(pendingCloseKey)
+        setPendingCloseKey(null)
+      }
+    } finally {
+      setIsClosingSave(false)
+    }
+  }
+
+  /** 支持侧栏文件与大纲页签的左右方向键切换。 */
+  const handleSidebarTabKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number
+  ): void => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    const nextIndex = (index + (event.key === 'ArrowRight' ? 1 : -1) + SIDEBAR_TABS.length) % SIDEBAR_TABS.length
+    const nextTab = SIDEBAR_TABS[nextIndex]
+    setSidebarView(nextTab.value)
+    sidebarTabRefs.current[nextTab.value]?.focus()
+  }
+
   useEffect(() => {
     return useEditorStore.subscribe((state, previous) => {
       if (state.workspaceRoot !== previous.workspaceRoot) setTreeEditing(null)
@@ -110,7 +181,20 @@ function App(): React.JSX.Element {
   }, [theme])
 
   useEffect(() => {
-    // Mounted guard prevents applying settings after effect cleanup.
+    if (!isSettingsOpen) return
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      // 存在开启的弹窗或下拉框时保留给浮层自行关闭。
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="listbox"]')) return
+      event.preventDefault()
+      returnToEditor()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [isSettingsOpen, returnToEditor])
+
+  useEffect(() => {
+    // Mounted guard prevents settings from applying after effect cleanup.
     let mounted = true
     /** 恢复设置与历史工作区，再允许消费系统文件请求。 */
     const initializeWorkspace = async (): Promise<void> => {
@@ -172,8 +256,7 @@ function App(): React.JSX.Element {
       const store = useEditorStore.getState()
       switch (action) {
         case 'new-file':
-          setActiveSurface('editor')
-          store.newUntitled()
+          handleNewFile()
           break
         case 'open-file':
           setActiveSurface('editor')
@@ -190,7 +273,7 @@ function App(): React.JSX.Element {
           void store.saveActiveAs()
           break
         case 'close-tab':
-          if (store.activeKey) store.closeTab(store.activeKey)
+          if (store.activeKey) requestCloseTab(store.activeKey)
           break
         case 'toggle-sidebar':
           store.toggleSidebar()
@@ -204,9 +287,12 @@ function App(): React.JSX.Element {
         case 'toggle-theme':
           store.toggleTheme()
           break
+        case 'open-settings':
+          setActiveSurface((surface) => (surface === 'settings' ? 'editor' : 'settings'))
+          break
       }
     })
-  }, [])
+  }, [handleNewFile, requestCloseTab])
 
   useEffect(() => window.api.app.setDirtyCount(updater.dirtyCount), [updater.dirtyCount])
 
@@ -235,6 +321,8 @@ function App(): React.JSX.Element {
 
   // Parsed headings feed the outline panel for the active document.
   const outlineItems = useMemo(() => parseOutline(activeRawMarkdown ?? ''), [activeRawMarkdown])
+  // Pending close document supplies confirmation dialog copy.
+  const pendingCloseDoc = pendingCloseKey ? openDocs[pendingCloseKey] : null
 
   return (
     <div className="flex h-full flex-col">
@@ -257,34 +345,41 @@ function App(): React.JSX.Element {
           <Group orientation="horizontal" id="inkdown.panels" className="flex min-w-0 flex-1">
             {sidebarOpen && (
               <>
-                <Panel defaultSize={260} minSize={220} maxSize={380} className="bg-panel">
+                <Panel defaultSize={256} minSize={210} maxSize={380} className="bg-panel">
                   <div className="flex h-full flex-col">
-                    <div
-                      role="tablist"
-                      aria-label={t('workspace.sidebar-navigation')}
-                      className="flex h-9 shrink-0 items-center border-b px-2"
-                    >
-                      {SIDEBAR_TABS.map((tab) => {
-                        // 当前页签状态控制选中样式和无障碍属性。
-                        const isSelected = sidebarView === tab.value
-                        return (
-                          <button
-                            key={tab.value}
-                            id={`sidebar-tab-${tab.value}`}
-                            type="button"
-                            role="tab"
-                            aria-selected={isSelected}
-                            aria-controls={`sidebar-panel-${tab.value}`}
-                            className={cn(
-                              'relative flex h-full flex-1 items-center justify-center px-2 text-xs font-medium text-muted-foreground outline-none transition-colors after:absolute after:bottom-0 after:left-1/2 after:h-0.5 after:w-8 after:-translate-x-1/2 after:bg-transparent hover:bg-accent/60 hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
-                              isSelected && 'font-semibold text-primary after:bg-primary'
-                            )}
-                            onClick={() => setSidebarView(tab.value)}
-                          >
-                            {t(tab.label)}
-                          </button>
-                        )
-                      })}
+                    <div className="flex h-9 shrink-0 items-center border-b px-2">
+                      <div
+                        role="tablist"
+                        aria-label={t('workspace.sidebar-navigation')}
+                        className="grid w-full grid-cols-2 rounded-md bg-muted/80 p-0.5"
+                      >
+                        {SIDEBAR_TABS.map((tab, index) => {
+                          // 当前页签状态控制分段胶囊选中样式和无障碍属性。
+                          const isSelected = sidebarView === tab.value
+                          return (
+                            <button
+                              key={tab.value}
+                              ref={(element) => {
+                                sidebarTabRefs.current[tab.value] = element
+                              }}
+                              id={`sidebar-tab-${tab.value}`}
+                              type="button"
+                              role="tab"
+                              tabIndex={isSelected ? 0 : -1}
+                              aria-selected={isSelected}
+                              aria-controls={`sidebar-panel-${tab.value}`}
+                              className={cn(
+                                'flex h-6.5 items-center justify-center rounded-[4px] px-2 text-xs font-medium text-muted-foreground outline-none transition-[background-color,color,box-shadow] duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60',
+                                isSelected && 'bg-background text-foreground shadow-xs'
+                              )}
+                              onClick={() => setSidebarView(tab.value)}
+                              onKeyDown={(event) => handleSidebarTabKeyDown(event, index)}
+                            >
+                              {t(tab.label)}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
                     <div
                       id={`sidebar-panel-${sidebarView}`}
@@ -300,11 +395,16 @@ function App(): React.JSX.Element {
                     </div>
                   </div>
                 </Panel>
-                <Separator className="w-px bg-border transition-colors hover:bg-primary/60" />
+                <Separator className="group relative z-10 -mx-1 flex w-2 items-center justify-center bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+                  <span
+                    aria-hidden="true"
+                    className="h-full w-px bg-border transition-colors group-hover:bg-ring/60 group-focus-visible:bg-ring"
+                  />
+                </Separator>
               </>
             )}
             <Panel minSize={360} className="min-w-0">
-              <EditorPane onNewFile={handleNewFile} />
+              <EditorPane onNewFile={handleNewFile} onRequestCloseTab={requestCloseTab} />
             </Panel>
           </Group>
         </div>
@@ -321,7 +421,46 @@ function App(): React.JSX.Element {
           </div>
         )}
       </div>
-      {!isSettingsOpen && <StatusBar />}
+      {!isSettingsOpen && activeKey && <StatusBar />}
+      <AlertDialog
+        open={Boolean(pendingCloseDoc)}
+        onOpenChange={(open) => {
+          if (!open && !isClosingSave) setPendingCloseKey(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('workspace.close-unsaved-document')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('workspace.close-unsaved-description', {
+                name: pendingCloseDoc?.name ?? t('workspace.current-document')
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="outline" disabled={isClosingSave}>
+              {t('workspace.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={isClosingSave}
+              onClick={() => {
+                if (pendingCloseKey) useEditorStore.getState().closeTab(pendingCloseKey)
+                setPendingCloseKey(null)
+              }}
+            >
+              {t('workspace.discard-and-close')}
+            </AlertDialogAction>
+            <Button
+              type="button"
+              disabled={isClosingSave}
+              onClick={() => void handleSaveAndClosePendingTab()}
+            >
+              {isClosingSave ? t('workspace.saving-2') : t('workspace.save-and-close')}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <UpdateDialog
         updateState={updater.updateState}
         dirtyCount={updater.dirtyCount}

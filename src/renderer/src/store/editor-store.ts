@@ -1,6 +1,7 @@
 import { t } from '@/lib/i18n'
 import { create } from 'zustand'
 import { toast } from 'sonner'
+import { formatErrorMessage } from '@/lib/error-message'
 import type {
   EditorMode,
   FileNode,
@@ -63,6 +64,9 @@ interface EditorStore {
   openWorkspacePath: (path: string) => Promise<void>
   setWorkspace: (root: string, nodes: FileNode[]) => void
   closeWorkspace: () => void
+  collapseAllDirectories: () => void
+  removeRecentEntry: (kind: RecentEntryKind, path: string) => Promise<void>
+  restoreMissingDocument: (key: string) => Promise<boolean>
   setTreeNodes: (directory: string, nodes: FileNode[]) => void
   expandDirectory: (directory: string) => Promise<void>
   collapseDirectory: (directory: string) => void
@@ -198,10 +202,11 @@ const storedSidebarView =
   storedSidebarViewValue === 'files' || storedSidebarViewValue === 'outline'
     ? storedSidebarViewValue
     : null
-// 旧版文件树开关兼作新版侧栏总开关。
-const storedSidebarOpen = localStorage.getItem('inkdown.sidebar') !== '0'
-// 旧版大纲开关用于首次迁移时确定默认页签。
-const storedOutlineOpen = localStorage.getItem('inkdown.outline') !== '0'
+// 仅在用户明确保存过侧栏状态时恢复，首次冷启动默认收起侧栏保持写作区纯净。
+const storedSidebarRaw = localStorage.getItem('inkdown.sidebar')
+const storedSidebarOpen = storedSidebarRaw === '1'
+// 旧版大纲开关仅在首次迁移时作为参考。
+const storedOutlineOpen = localStorage.getItem('inkdown.outline') === '1'
 const documentSaveQueues = new Map<string, Promise<boolean>>()
 
 /** 持久化侧栏开关、当前页签及旧版大纲兼容状态。 */
@@ -220,7 +225,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activeKey: null,
   mode: 'wysiwyg',
   theme: storedTheme,
-  sidebarOpen: storedSidebarView ? storedSidebarOpen : storedSidebarOpen || storedOutlineOpen,
+  sidebarOpen: storedSidebarRaw !== null ? storedSidebarOpen : storedOutlineOpen,
   sidebarView: storedSidebarView ?? (storedOutlineOpen ? 'outline' : 'files'),
   recent: { workspaces: [], files: [], lastWorkspace: null },
   activeHeading: 0,
@@ -267,14 +272,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       // 工作区快照用于初始化根目录及首层文件树。
       const snapshot = await window.api.workspace.openPath(path)
       if (!snapshot) return
+      persistSidebarState(true, 'files')
       set({
         workspaceRoot: snapshot.root,
         treeNodes: { [snapshot.root]: snapshot.nodes },
-        expandedDirs: [snapshot.root]
+        expandedDirs: [snapshot.root],
+        sidebarOpen: true,
+        sidebarView: 'files'
       })
     } catch (error) {
       if (!isMissingPathError(error)) {
-        toast.error(t('workspace.unable-to-open-folder'), { description: String(error) })
+        toast.error(t('workspace.unable-to-open-folder'), { description: formatErrorMessage(error) })
         return
       }
       // 持久化结果用于刷新最近工作区并停止后续启动恢复。
@@ -286,16 +294,79 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   openWorkspace: async () => {
     const snapshot = await window.api.workspace.open()
     if (!snapshot) return
+    persistSidebarState(true, 'files')
     set({
       workspaceRoot: snapshot.root,
       treeNodes: { [snapshot.root]: snapshot.nodes },
-      expandedDirs: [snapshot.root]
+      expandedDirs: [snapshot.root],
+      sidebarOpen: true,
+      sidebarView: 'files'
     })
   },
   setWorkspace: (root, nodes) => {
-    set({ workspaceRoot: root, treeNodes: { [root]: nodes }, expandedDirs: [root] })
+    persistSidebarState(true, 'files')
+    set({
+      workspaceRoot: root,
+      treeNodes: { [root]: nodes },
+      expandedDirs: [root],
+      sidebarOpen: true,
+      sidebarView: 'files'
+    })
   },
   closeWorkspace: () => set({ workspaceRoot: null, treeNodes: {}, expandedDirs: [] }),
+  collapseAllDirectories: () => {
+    const root = get().workspaceRoot
+    set({ expandedDirs: root ? [root] : [] })
+  },
+  removeRecentEntry: async (kind, path) => {
+    const recent = await persistRecentPathRemoval(get().recent, kind, path)
+    get().setRecent(recent)
+  },
+  restoreMissingDocument: async (key) => {
+    const doc = get().openDocs[key]
+    if (!doc) return false
+    if (!doc.diskPath) return get().saveActiveAs()
+
+    const diskPath = doc.diskPath
+    get().setSaving(key, true)
+    try {
+      const result = await window.api.file.save({
+        path: diskPath,
+        content: doc.rawMarkdown,
+        newline: doc.newline,
+        hasBom: doc.hasBom
+      })
+      set((state) => {
+        const current = state.openDocs[key]
+        if (!current || current.diskPath !== diskPath) return state
+        return {
+          openDocs: {
+            ...state.openDocs,
+            [key]: {
+              ...current,
+              diskPath: result.path,
+              name: basename(result.path),
+              savedRawMarkdown: doc.rawMarkdown,
+              saving: false,
+              isMissingOnDisk: false
+            }
+          }
+        }
+      })
+      await get()
+        .refreshDirectory(dirname(result.path))
+        .catch(() => undefined)
+      toast.success(t('workspace.saved'))
+      return true
+    } catch (error) {
+      get().setSaving(key, false)
+      if (isMissingPathError(error) && get().activeKey === key) {
+        return get().saveActiveAs()
+      }
+      toast.error(t('workspace.save-failed'), { description: formatErrorMessage(error) })
+      return false
+    }
+  },
   setTreeNodes: (directory, nodes) => {
     set((state) => updateTreeCache(state, directory, nodes))
   },
@@ -382,7 +453,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       await get().revealFileInWorkspace(data.path)
     } catch (error) {
       if (!isMissingPathError(error)) {
-        toast.error(t('workspace.unable-to-open-file'), { description: String(error) })
+        toast.error(t('workspace.unable-to-open-file'), { description: formatErrorMessage(error) })
         return
       }
       // 持久化结果用于立即刷新欢迎页中的最近文件。
@@ -566,7 +637,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
               ? get().saveActiveAs()
               : false
           }
-          toast.error(t('workspace.save-failed'), { description: String(error) })
+          toast.error(t('workspace.save-failed'), { description: formatErrorMessage(error) })
           return false
         }
       })
@@ -623,7 +694,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return true
     } catch (error) {
       get().setSaving(activeKey, false)
-      toast.error(t('workspace.save-as-failed'), { description: String(error) })
+      toast.error(t('workspace.save-as-failed'), { description: formatErrorMessage(error) })
       return false
     }
   },

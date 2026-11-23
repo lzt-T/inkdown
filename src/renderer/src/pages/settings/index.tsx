@@ -13,14 +13,14 @@ import {
   Sun
 } from 'lucide-react'
 import { AboutSettingsSection } from '@/pages/settings/components/AboutSettingsSection'
-import { LanguageSettings } from '@/pages/settings/components/LanguageSettings'
 import { ImageSettingsSection } from '@/pages/settings/components/ImageSettingsSection'
+import { LanguageSettings } from '@/pages/settings/components/LanguageSettings'
 import { ProxySettingsSection } from '@/pages/settings/components/ProxySettingsSection'
 import { ShortcutSettingsSection } from '@/pages/settings/components/ShortcutSettingsSection'
-import { useEditorStore } from '@/store/editor-store'
 import { Button } from '@/components/ui/button'
 import type { UpdateCheckViewState } from '@/hooks/useAppUpdater'
 import { cn } from '@/lib/utils'
+import { useEditorStore } from '@/store/editor-store'
 import type { AppUpdateState, ThemeMode } from '../../../../shared/contracts'
 
 interface SettingsPageProps {
@@ -84,27 +84,24 @@ export function SettingsPage({
   // 订阅语言变更，使当前界面文案同步刷新。
   useTranslation()
 
-  // Current theme controls the selected appearance option.
   const theme = useEditorStore((state) => state.theme)
-  // Theme updates reuse the existing persistence flow in App.
   const setTheme = useEditorStore((state) => state.setTheme)
-  // Active category selects the visible settings section.
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('appearance')
-  // Section map keeps fixed category dispatch explicit and traceable.
+
   const sectionContent: Record<SettingsCategory, React.JSX.Element> = {
     appearance: (
       <div className="max-w-3xl">
         <h2 className="text-base font-semibold text-foreground">{t('settings.appearance')}</h2>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('settings.choose-a-theme-for-your-environment-changes-apply-immediately')}</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+          {t('settings.choose-a-theme-for-your-environment-changes-apply-immediately')}
+        </p>
 
         <LanguageSettings />
         <div className="mt-7">
           <h3 className="text-sm font-medium text-foreground">{t('settings.theme')}</h3>
           <div className="mt-3 grid gap-3 @min-[36rem]:grid-cols-2">
             {THEME_OPTIONS.map((option) => {
-              // Each icon communicates the ambience of its corresponding theme.
               const Icon = option.icon
-              // Selection drives visual emphasis and accessible pressed state.
               const isSelected = theme === option.value
 
               return (
@@ -116,44 +113,50 @@ export function SettingsPage({
                   className={cn(
                     'group rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 active:translate-y-px',
                     isSelected
-                      ? 'border-primary bg-primary/5'
-                      : 'bg-card hover:border-primary/40 hover:bg-accent/30'
+                      ? 'border-primary bg-selected/50'
+                      : 'bg-card hover:border-primary/40 hover:bg-accent/40'
                   )}
                 >
                   <span
                     className={cn(
                       'relative block h-28 overflow-hidden rounded-md border',
                       option.value === 'light'
-                        ? 'border-[#d4dde9] bg-[#f6f8fc]'
-                        : 'border-[#303036] bg-[#09090b]'
+                        ? 'border-[#e5e6eb] bg-[#ffffff]'
+                        : 'border-[#272931] bg-[#18191d]'
                     )}
                   >
                     <span
                       className={cn(
                         'absolute inset-x-0 top-0 h-5 border-b',
                         option.value === 'light'
-                          ? 'border-[#d4dde9] bg-white'
-                          : 'border-[#303036] bg-[#18181b]'
+                          ? 'border-[#e5e6eb] bg-[#f4f4f6]'
+                          : 'border-[#272931] bg-[#131417]'
                       )}
                     />
                     <span
                       className={cn(
                         'absolute bottom-0 left-0 top-5 w-12 border-r',
                         option.value === 'light'
-                          ? 'border-[#d4dde9] bg-[#f2f5fb]'
-                          : 'border-[#303036] bg-[#18181b]'
+                          ? 'border-[#e5e6eb] bg-[#f4f4f6]'
+                          : 'border-[#272931] bg-[#131417]'
                       )}
                     />
                     <span
                       className={cn(
-                        'absolute left-[4.5rem] top-10 h-2 w-20 rounded-full',
-                        option.value === 'light' ? 'bg-[#162336]' : 'bg-[#f4f4f5]'
+                        'absolute left-[4.25rem] top-9 h-2 w-16 rounded-full',
+                        option.value === 'light' ? 'bg-[#18191d]' : 'bg-[#eceef2]'
                       )}
                     />
                     <span
                       className={cn(
-                        'absolute left-[4.5rem] top-16 h-1.5 w-28 rounded-full',
-                        option.value === 'light' ? 'bg-[#5e7087]' : 'bg-[#a1a1aa]'
+                        'absolute left-[4.25rem] top-13.5 h-1.5 w-28 rounded-full',
+                        option.value === 'light' ? 'bg-[#5f6370]/70' : 'bg-[#8d919e]/70'
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        'absolute left-[4.25rem] top-17.5 h-1.5 w-14 rounded-full',
+                        option.value === 'light' ? 'bg-[#2563eb]' : 'bg-[#5b9bff]'
                       )}
                     />
                   </span>
@@ -196,28 +199,46 @@ export function SettingsPage({
   return (
     <main className="flex min-h-0 flex-1 overflow-auto bg-background">
       <div className="@container mx-auto w-full max-w-5xl px-8 py-10">
-        <div className="mb-10 flex items-center gap-3 border-b pb-6">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-md"
-            onClick={onClose}
-            title={t('settings.back-to-editor')}
-          >
-            <ArrowLeft />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">{t('settings.settings')}</h1>
-            <p className="mt-1 text-xs text-muted-foreground">{t('settings.customize-your-inkdown-experience')}</p>
+        <div className="mb-8 flex items-center justify-between gap-4 border-b pb-5">
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-md"
+              onClick={onClose}
+              aria-label={t('settings.back-to-editor')}
+              title={`${t('settings.back-to-editor')} (Esc)`}
+            >
+              <ArrowLeft />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">
+                {t('settings.settings')}
+              </h1>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('settings.customize-your-inkdown-experience')}
+              </p>
+            </div>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            className="hidden gap-2 @min-[36rem]:inline-flex"
+          >
+            <span>{t('settings.back-to-editor')}</span>
+            <kbd className="rounded bg-muted px-1.5 py-0.5 font-sans text-[10px] font-medium text-muted-foreground">
+              Esc
+            </kbd>
+          </Button>
         </div>
 
-        <div className="grid gap-8 @min-[42rem]:grid-cols-[11rem_minmax(0,1fr)]">
+        <div className="grid gap-8 @min-[42rem]:grid-cols-[12rem_minmax(0,1fr)]">
           <nav aria-label={t('settings.settings-categories')} className="space-y-1">
             {SETTINGS_CATEGORIES.map((category) => {
-              // Category icon follows the fixed navigation configuration.
               const Icon = category.icon
-              // Current category controls selection styling and accessible page state.
               const isSelected = activeCategory === category.value
               return (
                 <button
@@ -229,10 +250,10 @@ export function SettingsPage({
                     'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60',
                     isSelected
                       ? 'bg-selected text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                   )}
                 >
-                  <Icon className="size-4" />
+                  <Icon className={cn('size-4', isSelected && 'text-primary')} />
                   {t(category.label)}
                 </button>
               )

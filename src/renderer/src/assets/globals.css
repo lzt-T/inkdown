@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC',
@@ -23,6 +25,10 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -35,80 +41,98 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* 亮色主题：石墨纯墨工作台（Graphite Light） */
 :root {
   --radius: 6px;
-  --background: #f6f8fc;
-  --foreground: #162336;
+  --background: #ffffff;
+  --foreground: #1b1d22;
   --card: #ffffff;
-  --card-foreground: #162336;
+  --card-foreground: #1b1d22;
   --popover: #ffffff;
-  --popover-foreground: #162336;
-  --primary: #3548d4;
+  --popover-foreground: #1b1d22;
+  --primary: #18191d;
   --primary-foreground: #ffffff;
-  --secondary: #e9edfa;
-  --secondary-foreground: #26366f;
-  --muted: #edf1f7;
-  --muted-foreground: #5e7087;
-  --accent: #e7ebfb;
-  --accent-foreground: #253472;
-  --destructive: #b4232d;
-  --border: #d4dde9;
-  --input: #d4dde9;
-  --ring: #3548d4;
-  --panel: #f2f5fb;
-  --panel-foreground: #26364c;
-  --selected: #e4e9fb;
-  --scrollbar-thumb: color-mix(in srgb, var(--muted-foreground) 42%, transparent);
-  --scrollbar-thumb-hover: color-mix(in srgb, var(--muted-foreground) 65%, transparent);
+  --secondary: #ededf0;
+  --secondary-foreground: #272932;
+  --muted: #ededf0;
+  --muted-foreground: #5f6370;
+  --accent: #ebecf0;
+  --accent-foreground: #1b1d22;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #15803d;
+  --warning: #b45309;
+  --info: #2563eb;
+  --border: #e5e6eb;
+  --input: #d1d3dc;
+  --ring: #2563eb;
+  --panel: #f4f4f6;
+  --panel-foreground: #363942;
+  --selected: #e6e7ec;
+  --scrollbar-thumb: color-mix(in srgb, var(--muted-foreground) 32%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
 }
 
+/* 暗色主题：深炭石墨工作台（Graphite Dark） */
 .dark {
-  --background: #09090b;
-  --foreground: #f4f4f5;
-  --card: #111113;
-  --card-foreground: #f4f4f5;
-  --popover: #111113;
-  --popover-foreground: #f4f4f5;
-  --primary: #8c9bff;
-  --primary-foreground: #111116;
-  --secondary: #1c1c1f;
-  --secondary-foreground: #e4e4e7;
-  --muted: #18181b;
-  --muted-foreground: #a1a1aa;
-  --accent: #27272a;
-  --accent-foreground: #f4f4f5;
-  --destructive: #ff7b82;
-  --border: #303036;
-  --input: #303036;
-  --ring: #8c9bff;
-  --panel: #18181b;
-  --panel-foreground: #e4e4e7;
-  --selected: #27272a;
+  --background: #18191d;
+  --foreground: #eceef2;
+  --card: #1e2026;
+  --card-foreground: #eceef2;
+  --popover: #1e2026;
+  --popover-foreground: #eceef2;
+  --primary: #eceef2;
+  --primary-foreground: #141519;
+  --secondary: #21232a;
+  --secondary-foreground: #d9dce4;
+  --muted: #21232a;
+  --muted-foreground: #8d919e;
+  --accent: #24262e;
+  --accent-foreground: #eceef2;
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
+  --success: #3dd68c;
+  --warning: #f5a623;
+  --info: #5b9bff;
+  --border: #272931;
+  --input: #363944;
+  --ring: #5b9bff;
+  --panel: #131417;
+  --panel-foreground: #c6c9d2;
+  --selected: #282a33;
 }
 
-* {
-  border-color: var(--border);
-  outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
-}
+/* 基础通配规则置于 base 层，防止覆盖 Tailwind 工具类的边框颜色 */
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
+  }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-}
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-}
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
 
-button {
-  cursor: default;
+  button {
+    cursor: default;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--ring) 18%, transparent);
+    color: var(--foreground);
+  }
 }
 
 ::-webkit-scrollbar {
@@ -122,7 +146,7 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  border: 1px solid transparent;
+  border: 2px solid transparent;
   border-radius: 999px;
   background-color: var(--scrollbar-thumb);
   background-clip: padding-box;
@@ -140,7 +164,7 @@ button {
 
 .inkdown-tabs-scroll::-webkit-scrollbar {
   width: 0;
-  height: 4px;
+  height: 3px;
 }
 
 .inkdown-tabs-scroll::-webkit-scrollbar-thumb {
@@ -152,8 +176,8 @@ button {
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  border-top-width: 0 !important;
-  border-radius: 0 0 var(--zt-radius-lg) var(--zt-radius-lg) !important;
+  border-width: 0 !important;
+  border-radius: 0 !important;
   overflow: hidden;
 }
 
@@ -182,6 +206,11 @@ button {
   padding: 40px 40px 140px !important;
 }
 
+/* 源码编辑器与所见即所得共享同一画布底色与版心约束 */
+.inkdown-source-surface {
+  container: inkdown-source / inline-size;
+}
+
 .inkdown-source-surface > .cm-theme {
   height: 100%;
   min-height: 0;
@@ -208,6 +237,12 @@ button {
 
 @container inkdown-editor (max-width: 620px) {
   .inkdown-editor-surface .zt-md-editor .ProseMirror {
+    padding-inline: 24px !important;
+  }
+}
+
+@container inkdown-source (max-width: 620px) {
+  .inkdown-source-surface .cm-content {
     padding-inline: 24px !important;
   }
 }

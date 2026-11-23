@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
+import { PRIMARY_MODIFIER } from '@/lib/platform'
+
 // 快捷键分组集中描述设置页需要展示的文件与视图操作。
 const SHORTCUT_GROUPS = [
   {
@@ -18,26 +20,25 @@ const SHORTCUT_GROUPS = [
     value: 'view',
     label: 'settings.view',
     shortcuts: [
-      { label: 'settings.toggle-file-tree', keys: ['B'] },
+      { label: 'workspace.toggle-sidebar', keys: ['B'] },
       { label: 'settings.toggle-outline', keys: ['Shift', 'E'] },
       { label: 'settings.toggle-source-mode', keys: ['/'] },
-      { label: 'settings.toggle-theme', keys: ['Shift', 'T'] }
+      { label: 'settings.toggle-theme', keys: ['Shift', 'T'] },
+      { label: 'settings.settings', keys: [','] }
     ]
   }
 ] as const
 
-// 主修饰键按照当前桌面平台显示为 Command 或 Ctrl。
-const PRIMARY_MODIFIER = navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'
-
 /** 展示 Inkdown 当前支持的固定快捷键。 */
 export function ShortcutSettingsSection(): React.JSX.Element {
-  // 订阅语言变更，使当前界面文案同步刷新。
   useTranslation()
 
   return (
     <div className="max-w-3xl">
       <h2 className="text-base font-semibold text-foreground">{t('settings.keyboard-shortcuts')}</h2>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('settings.view-inkdown-keyboard-shortcuts-custom-shortcuts-are-not-supported-yet')}</p>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+        {t('settings.view-inkdown-keyboard-shortcuts-custom-shortcuts-are-not-supported-yet')}
+      </p>
 
       <div className="mt-7 max-w-2xl space-y-7">
         {SHORTCUT_GROUPS.map((group) => (

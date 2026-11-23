@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { formatErrorMessage } from '@/lib/error-message'
 import { initialSettings, rendererI18n, t } from '@/lib/i18n'
 import type { LanguagePreference } from '../../../../../shared/localization'
 
@@ -27,7 +28,7 @@ export function LanguageSettings(): React.JSX.Element {
       currentPreference = settings.language
       setPreference(settings.language)
     } catch (error) {
-      toast.error(t('settings.language-save-failed'), { description: String(error) })
+      toast.error(t('settings.language-save-failed'), { description: formatErrorMessage(error) })
     } finally {
       setSaving(false)
     }

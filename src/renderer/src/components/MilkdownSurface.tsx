@@ -1,4 +1,5 @@
 import { t } from '@/lib/i18n'
+import { formatErrorMessage } from '@/lib/error-message'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MilkdownEditor } from 'zt-react-milkdown'
@@ -64,7 +65,9 @@ export function MilkdownSurface({
       }
       return result.src
     } catch (error) {
-      toast.error(t('workspace.image-upload-failed-no-image-inserted'), { description: String(error) })
+      toast.error(t('workspace.image-upload-failed-no-image-inserted'), {
+        description: formatErrorMessage(error)
+      })
       throw error
     }
   }

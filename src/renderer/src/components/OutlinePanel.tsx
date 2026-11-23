@@ -72,9 +72,10 @@ function OutlineTreeItem({
           aria-current={isActive ? 'location' : undefined}
           onClick={() => onSelect(node.index)}
           className={cn(
-            'flex h-full min-w-0 flex-1 items-center rounded-sm px-1.5 text-left text-[13px] text-muted-foreground outline-none transition-colors hover:bg-accent/70 hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
-            depth === 0 && 'font-medium text-panel-foreground',
-            isActive && 'font-semibold text-primary'
+            'flex h-full min-w-0 flex-1 items-center rounded-md px-2 text-left text-[13px] text-panel-foreground outline-none transition-colors hover:bg-accent/80 hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+            depth === 0 && 'font-medium text-foreground',
+            depth >= 2 && 'text-xs text-muted-foreground',
+            isActive && 'bg-selected font-medium text-foreground hover:bg-selected hover:text-foreground'
           )}
           title={node.text}
         >
@@ -163,7 +164,7 @@ export function OutlinePanel({ documentKey, items }: OutlinePanelProps): React.J
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-8 shrink-0 items-center justify-between px-3 text-xs font-medium text-panel-foreground">
+      <div className="flex h-8 shrink-0 items-center justify-between border-b px-3 text-xs font-medium text-panel-foreground">
         <span>{t('workspace.current-document')}</span>
         <span className="font-normal tabular-nums text-muted-foreground">{t('workspace.heading-count', { count: items.length })}</span>
       </div>

@@ -1,10 +1,21 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
-import { useEffect, useState } from 'react'
-import { Check, FolderOpen, GitBranch, KeyRound, LoaderCircle, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Check, FolderOpen, GitBranch, KeyRound, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { formatErrorMessage } from '@/lib/error-message'
 import { cn } from '@/lib/utils'
 import type {
   GitHubImageStorageStatus,
@@ -23,31 +34,53 @@ const IMAGE_STORAGE_MODES: ImageStorageMode[] = ['relative', 'global', 'github']
 
 /** Renders local and GitHub image storage configuration. */
 export function ImageSettingsSection(): React.JSX.Element {
-  // 订阅语言变更，使当前界面文案同步刷新。
   useTranslation()
 
-  // Persisted settings remain the source of truth for active imports.
   const [imageStorage, setImageStorage] = useState<ImageStorageSettings | null>(null)
-  // Selected mode can preview the GitHub form before that mode is activated.
   const [selectedMode, setSelectedMode] = useState<ImageStorageMode>('relative')
-  // GitHub status excludes the secret while reporting whether one exists.
   const [githubStatus, setGitHubStatus] = useState<GitHubImageStorageStatus | null>(null)
-  // Editable directory text stays separate until validation succeeds.
   const [relativeDirectory, setRelativeDirectory] = useState('assets')
-  // Repository input accepts owner/repository and canonical GitHub URLs.
   const [repository, setRepository] = useState('')
-  // Token input is write-only and is cleared after a successful save.
   const [token, setToken] = useState('')
-  // Shared pending state prevents overlapping settings mutations.
   const [isSaving, setIsSaving] = useState(false)
-  // Relative path validation feedback is announced beside its input.
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [relativeDirectoryError, setRelativeDirectoryError] = useState<string | null>(null)
+  const [githubError, setGithubError] = useState<string | null>(null)
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
+
+  /** 将主进程返回的图片配置快照同步到组件状态。 */
+  const applyLoadedSettings = useCallback(
+    (state: { imageStorage: ImageStorageSettings }, status: GitHubImageStorageStatus): void => {
+      setLoadError(null)
+      setImageStorage(state.imageStorage)
+      setSelectedMode(state.imageStorage.mode)
+      setRelativeDirectory(state.imageStorage.relativeDirectory)
+      setGitHubStatus(status)
+      if (status.settings) {
+        setRepository(`${status.settings.owner}/${status.settings.repository}`)
+      }
+    },
+    []
+  )
+
+  /** 手动重试加载图片存储配置。 */
+  const handleRetryLoad = (): void => {
+    setLoadError(null)
+    void Promise.all([window.api.settings.get(), window.api.image.getGitHubStatus()])
+      .then(([state, status]) => {
+        applyLoadedSettings(state, status)
+      })
+      .catch((error) => {
+        const message = formatErrorMessage(error)
+        setLoadError(message)
+        toast.error(t('settings.unable-to-load-image-settings'), { description: message })
+      })
+  }
 
   /** Persists image settings and applies normalized values from the main process. */
   const persistImageStorage = async (next: ImageStorageSettings): Promise<boolean> => {
     setIsSaving(true)
     try {
-      // Main-process validation returns the canonical settings used by future imports.
       const state = await window.api.settings.set({ imageStorage: next })
       setImageStorage(state.imageStorage)
       setSelectedMode(state.imageStorage.mode)
@@ -55,7 +88,9 @@ export function ImageSettingsSection(): React.JSX.Element {
       setRelativeDirectoryError(null)
       return true
     } catch (error) {
-      toast.error(t('settings.image-storage-settings-were-not-updated'), { description: String(error) })
+      toast.error(t('settings.image-storage-settings-were-not-updated'), {
+        description: formatErrorMessage(error)
+      })
       return false
     } finally {
       setIsSaving(false)
@@ -65,7 +100,6 @@ export function ImageSettingsSection(): React.JSX.Element {
   /** Selects and persists a global directory after native confirmation. */
   const selectGlobalDirectory = async (): Promise<void> => {
     if (!imageStorage || isSaving) return
-    // Canceling the native picker leaves the current strategy unchanged.
     const directory = await window.api.image.selectDirectory()
     if (!directory) return
     await persistImageStorage({ ...imageStorage, mode: 'global', globalDirectory: directory })
@@ -74,6 +108,7 @@ export function ImageSettingsSection(): React.JSX.Element {
   /** Selects a storage strategy while deferring unconfigured GitHub activation. */
   const changeImageStorageMode = async (mode: ImageStorageMode): Promise<void> => {
     if (!imageStorage || isSaving) return
+    setGithubError(null)
     if (mode === 'github' && (!githubStatus?.settings || !githubStatus.hasToken)) {
       setSelectedMode('github')
       return
@@ -89,29 +124,30 @@ export function ImageSettingsSection(): React.JSX.Element {
   /** Saves the relative directory or restores the last accepted value. */
   const saveRelativeDirectory = async (): Promise<void> => {
     if (!imageStorage || isSaving || relativeDirectory === imageStorage.relativeDirectory) return
-    // Failed validation restores the persisted path and exposes a concise correction.
     const isSaved = await persistImageStorage({ ...imageStorage, relativeDirectory })
-    if (!isSaved) {
-      setRelativeDirectory(imageStorage.relativeDirectory)
-      setRelativeDirectoryError(t('settings.enter-a-relative-directory-without-an-absolute-path-or'))
+    if (isSaved) {
+      toast.success(t('settings.relative-directory-saved'))
+      return
     }
+    setRelativeDirectory(imageStorage.relativeDirectory)
+    setRelativeDirectoryError(t('settings.enter-a-relative-directory-without-an-absolute-path-or'))
   }
 
   /** Validates, securely stores, and activates the configured public GitHub repository. */
   const configureGitHub = async (): Promise<void> => {
     if (!imageStorage || isSaving) return
     if (!repository.trim()) {
-      toast.error(t('settings.enter-a-github-repository-url'))
+      setGithubError(t('settings.enter-a-github-repository-url'))
       return
     }
     if (!githubStatus?.hasToken && !token.trim()) {
-      toast.error(t('settings.enter-a-github-token-with-write-access-to-contents'))
+      setGithubError(t('settings.enter-a-github-token-with-write-access-to-contents'))
       return
     }
 
     setIsSaving(true)
+    setGithubError(null)
     try {
-      // Token crosses the isolated bridge once and is never returned to the renderer.
       const status = await window.api.image.configureGitHub({
         repository,
         token: token.trim() || null
@@ -122,7 +158,9 @@ export function ImageSettingsSection(): React.JSX.Element {
       setToken('')
       toast.success(t('settings.github-image-storage-enabled'))
     } catch (error) {
-      toast.error(t('settings.github-image-storage-configuration-failed'), { description: String(error) })
+      const message = formatErrorMessage(error)
+      setGithubError(message)
+      toast.error(t('settings.github-image-storage-configuration-failed'), { description: message })
     } finally {
       setIsSaving(false)
     }
@@ -133,51 +171,48 @@ export function ImageSettingsSection(): React.JSX.Element {
     if (isSaving) return
     setIsSaving(true)
     try {
-      // Main process falls back to relative storage before deleting the credential.
       const next = await window.api.image.clearGitHub()
       setImageStorage(next)
       setSelectedMode(next.mode)
       setGitHubStatus({ settings: null, hasToken: false })
       setRepository('')
       setToken('')
+      setGithubError(null)
+      setConfirmClearOpen(false)
       toast.success(t('settings.github-image-storage-configuration-cleared'))
     } catch (error) {
-      toast.error(t('settings.unable-to-clear-github-image-storage-configuration'), { description: String(error) })
+      toast.error(t('settings.unable-to-clear-github-image-storage-configuration'), {
+        description: formatErrorMessage(error)
+      })
     } finally {
       setIsSaving(false)
     }
   }
 
   useEffect(() => {
-    // Mounted guard prevents late IPC responses from updating a closed settings page.
     let mounted = true
-    // Initial request loads public settings and secret availability in parallel.
-    const settingsRequest = window.api.settings.get()
-    // Secret status is queried separately so the token never enters renderer state.
-    const githubRequest = window.api.image.getGitHubStatus()
-    void Promise.all([settingsRequest, githubRequest])
+    void Promise.all([window.api.settings.get(), window.api.image.getGitHubStatus()])
       .then(([state, status]) => {
         if (!mounted) return
-        setImageStorage(state.imageStorage)
-        setSelectedMode(state.imageStorage.mode)
-        setRelativeDirectory(state.imageStorage.relativeDirectory)
-        setGitHubStatus(status)
-        if (status.settings) {
-          setRepository(`${status.settings.owner}/${status.settings.repository}`)
-        }
+        applyLoadedSettings(state, status)
       })
       .catch((error) => {
-        toast.error(t('settings.unable-to-load-image-settings'), { description: String(error) })
+        if (!mounted) return
+        const message = formatErrorMessage(error)
+        setLoadError(message)
+        toast.error(t('settings.unable-to-load-image-settings'), { description: message })
       })
     return () => {
       mounted = false
     }
-  }, [])
+  }, [applyLoadedSettings])
 
   return (
     <div className="max-w-3xl">
       <h2 className="text-base font-semibold text-foreground">{t('settings.images')}</h2>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('settings.choose-where-new-images-are-saved-existing-images-will-stay-in-place')}</p>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+        {t('settings.choose-where-new-images-are-saved-existing-images-will-stay-in-place')}
+      </p>
 
       <div className="mt-7">
         <h3 className="text-sm font-medium text-foreground">{t('settings.storage-location')}</h3>
@@ -189,8 +224,8 @@ export function ImageSettingsSection(): React.JSX.Element {
               className="inline-grid grid-cols-3 rounded-md bg-muted p-1"
             >
               {IMAGE_STORAGE_MODES.map((mode) => {
-                // Pressed state follows the visible selection, including unconfigured GitHub.
                 const isSelected = selectedMode === mode
+                const isActiveStrategy = imageStorage.mode === mode
                 return (
                   <button
                     key={mode}
@@ -199,13 +234,20 @@ export function ImageSettingsSection(): React.JSX.Element {
                     disabled={isSaving}
                     onClick={() => void changeImageStorageMode(mode)}
                     className={cn(
-                      'rounded-sm px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50',
+                      'inline-flex items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50',
                       isSelected
                         ? 'bg-background text-foreground shadow-xs'
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {t(IMAGE_STORAGE_MODE_LABELS[mode])}
+                    <span>{t(IMAGE_STORAGE_MODE_LABELS[mode])}</span>
+                    {isActiveStrategy && (
+                      <span
+                        title={t('settings.currently-active')}
+                        aria-label={t('settings.currently-active')}
+                        className="size-1.5 shrink-0 rounded-full bg-success"
+                      />
+                    )}
                   </button>
                 )
               })}
@@ -213,7 +255,12 @@ export function ImageSettingsSection(): React.JSX.Element {
 
             {selectedMode === 'relative' && (
               <div>
-                <label htmlFor="relative-image-directory" className="text-sm font-medium text-foreground">{t('settings.relative-directory')}</label>
+                <label
+                  htmlFor="relative-image-directory"
+                  className="text-sm font-medium text-foreground"
+                >
+                  {t('settings.relative-directory')}
+                </label>
                 <Input
                   id="relative-image-directory"
                   value={relativeDirectory}
@@ -238,19 +285,23 @@ export function ImageSettingsSection(): React.JSX.Element {
                 />
                 <p
                   id="relative-image-directory-help"
+                  role={relativeDirectoryError ? 'alert' : undefined}
                   className={cn(
                     'mt-2 text-xs leading-5',
                     relativeDirectoryError ? 'text-destructive' : 'text-muted-foreground'
                   )}
                 >
-                  {relativeDirectoryError ?? t('settings.for-example-assets-or-assets-images-use-to-save-beside-the-document')}
+                  {relativeDirectoryError ??
+                    t('settings.for-example-assets-or-assets-images-use-to-save-beside-the-document')}
                 </p>
               </div>
             )}
 
             {selectedMode === 'global' && (
               <div>
-                <label htmlFor="global-image-directory" className="text-sm font-medium text-foreground">{t('settings.global-directory-2')}</label>
+                <label htmlFor="global-image-directory" className="text-sm font-medium text-foreground">
+                  {t('settings.global-directory-2')}
+                </label>
                 <div className="mt-2 flex flex-col gap-2 @min-[36rem]:flex-row">
                   <Input
                     id="global-image-directory"
@@ -264,9 +315,15 @@ export function ImageSettingsSection(): React.JSX.Element {
                     disabled={isSaving}
                     onClick={() => void selectGlobalDirectory()}
                   >
-                    <FolderOpen />{t('settings.choose-folder')}</Button>
+                    <FolderOpen />
+                    {t('settings.choose-folder')}
+                  </Button>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">{t('settings.global-storage-uses-absolute-file-links-that-remain-unchanged-when-the-document-moves')}</p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {t(
+                    'settings.global-storage-uses-absolute-file-links-that-remain-unchanged-when-the-document-moves'
+                  )}
+                </p>
               </div>
             )}
 
@@ -277,27 +334,40 @@ export function ImageSettingsSection(): React.JSX.Element {
                     <GitBranch className="size-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">{t('settings.public-github-repository')}</p>
-                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{t('settings.new-images-are-committed-to-images-year-month-and-linked-with-public-raw-urls-in-mark')}</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {t('settings.public-github-repository')}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                      {t(
+                        'settings.new-images-are-committed-to-images-year-month-and-linked-with-public-raw-urls-in-mark'
+                      )}
+                    </p>
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="github-image-repository" className="text-sm font-medium text-foreground">{t('settings.repository')}</label>
+                  <label htmlFor="github-image-repository" className="text-sm font-medium text-foreground">
+                    {t('settings.repository')}
+                  </label>
                   <Input
                     id="github-image-repository"
                     value={repository}
                     disabled={isSaving}
                     className="mt-2"
                     placeholder="owner/repository"
-                    onChange={(event) => setRepository(event.target.value)}
+                    onChange={(event) => {
+                      setRepository(event.target.value)
+                      setGithubError(null)
+                    }}
                   />
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{t('settings.use-owner-repository-or-https-github-com-owner-repository')}</p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    {t('settings.use-owner-repository-or-https-github-com-owner-repository')}
+                  </p>
                 </div>
 
                 <div>
                   <label htmlFor="github-image-token" className="text-sm font-medium text-foreground">
-                    Fine-grained Token
+                    {t('settings.github-token-label')}
                   </label>
                   <div className="relative mt-2">
                     <KeyRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -308,48 +378,103 @@ export function ImageSettingsSection(): React.JSX.Element {
                       disabled={isSaving}
                       autoComplete="off"
                       className="pl-9"
-                      placeholder={githubStatus?.hasToken ? t('settings.leave-blank-to-keep-the-saved-token') : 'github_pat_…'}
-                      onChange={(event) => setToken(event.target.value)}
+                      placeholder={
+                        githubStatus?.hasToken
+                          ? t('settings.leave-blank-to-keep-the-saved-token')
+                          : 'github_pat_…'
+                      }
+                      onChange={(event) => {
+                        setToken(event.target.value)
+                        setGithubError(null)
+                      }}
                     />
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{t('settings.the-token-needs-write-access-to-the-repository-s-contents-and-is-encrypted-locally-us')}</p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    {t(
+                      'settings.the-token-needs-write-access-to-the-repository-s-contents-and-is-encrypted-locally-us'
+                    )}
+                  </p>
                 </div>
+
+                {githubError && (
+                  <p role="alert" className="text-xs leading-5 text-destructive">
+                    {githubError}
+                  </p>
+                )}
 
                 {githubStatus?.settings && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     {githubStatus.hasToken ? (
-                      <Check className="size-3.5 text-primary" />
+                      <Check className="size-3.5 text-success" />
                     ) : (
                       <KeyRound className="size-3.5 text-destructive" />
                     )}
-                    {githubStatus.hasToken ? t('settings.connected') : t('settings.credentials-unavailable')}{' '}
-                    {githubStatus.settings.owner}/{githubStatus.settings.repository}{' '}{t('settings.branch')}{' '}
-                    {githubStatus.settings.branch}
+                    {githubStatus.hasToken
+                      ? t('settings.connected')
+                      : t('settings.credentials-unavailable')}{' '}
+                    {githubStatus.settings.owner}/{githubStatus.settings.repository}{' '}
+                    {t('settings.branch')} {githubStatus.settings.branch}
                   </div>
                 )}
 
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" disabled={isSaving} onClick={() => void configureGitHub()}>
                     {isSaving ? <LoaderCircle className="animate-spin" /> : <GitBranch />}
-                    {githubStatus?.settings ? t('settings.save-and-enable') : t('settings.connect-and-enable')}
+                    {githubStatus?.settings
+                      ? t('settings.save-and-enable')
+                      : t('settings.connect-and-enable')}
                   </Button>
                   {githubStatus?.settings && (
                     <Button
                       type="button"
                       variant="outline"
                       disabled={isSaving}
-                      onClick={() => void clearGitHub()}
+                      onClick={() => setConfirmClearOpen(true)}
                     >
-                      <Trash2 />{t('settings.clear-configuration')}</Button>
+                      <Trash2 />
+                      {t('settings.clear-configuration')}
+                    </Button>
                   )}
                 </div>
               </div>
             )}
           </div>
+        ) : loadError ? (
+          <div role="alert" className="mt-3 flex items-center gap-3 text-sm text-destructive">
+            <span>{loadError}</span>
+            <Button type="button" variant="outline" size="xs" onClick={handleRetryLoad}>
+              <RefreshCw />
+              {t('settings.retry')}
+            </Button>
+          </div>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground">{t('settings.loading-image-settings')}</p>
         )}
       </div>
+
+      <AlertDialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.clear-github-confirm-title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('settings.clear-github-confirm-description')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>{t('workspace.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={isSaving}
+              onClick={(event) => {
+                event.preventDefault()
+                void clearGitHub()
+              }}
+            >
+              {t('settings.clear-configuration')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

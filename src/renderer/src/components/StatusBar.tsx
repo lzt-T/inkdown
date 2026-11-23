@@ -1,59 +1,81 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
+import { relativeFromDirectory } from '@/lib/markdown-paths'
 import { countWords } from '@/lib/outline'
+import { formatShortcut } from '@/lib/platform'
+import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
 
-/** Renders document mode, count, save state, and location metadata. */
-export function StatusBar(): React.JSX.Element {
+// 状态键到指示圆点样式的纯映射表，避免堆叠分支。
+const STATUS_DOT_STYLES = {
+  saving: 'bg-info animate-pulse',
+  missing: 'bg-warning',
+  dirty: 'bg-info',
+  saved: 'bg-success'
+} as const
+
+/** 展示当前活动文档的交互式模式切换、字数、保存状态与精简路径。 */
+export function StatusBar(): React.JSX.Element | null {
   // 订阅语言变更，使当前界面文案同步刷新。
   useTranslation()
 
-  // Active key selects document-specific status data.
   const activeKey = useEditorStore((state) => state.activeKey)
-  // Editor mode labels the active editing surface.
+  const workspaceRoot = useEditorStore((state) => state.workspaceRoot)
   const mode = useEditorStore((state) => state.mode)
-  // Raw Markdown supplies the word count and dirty comparison.
-  const rawMarkdown = useEditorStore((state) =>
-    activeKey ? (state.openDocs[activeKey]?.rawMarkdown ?? null) : null
-  )
-  // Saved Markdown establishes the clean document baseline.
-  const savedRawMarkdown = useEditorStore((state) =>
-    activeKey ? (state.openDocs[activeKey]?.savedRawMarkdown ?? null) : null
-  )
-  // Saving state communicates an active disk write.
-  const saving = useEditorStore((state) =>
-    activeKey ? (state.openDocs[activeKey]?.saving ?? false) : false
-  )
-  // 磁盘缺失状态提示当前缓冲区需要另存为。
-  const isMissingOnDisk = useEditorStore((state) =>
-    activeKey ? (state.openDocs[activeKey]?.isMissingOnDisk ?? false) : false
-  )
-  // Disk path identifies the active file location.
-  const diskPath = useEditorStore((state) =>
-    activeKey ? (state.openDocs[activeKey]?.diskPath ?? null) : null
-  )
-  // Word count measures the current Markdown content.
-  const wordCount = rawMarkdown === null ? 0 : countWords(rawMarkdown)
-  // Dirty state detects unsaved content changes.
-  const dirty = rawMarkdown !== null && rawMarkdown !== savedRawMarkdown
-  // 状态文案优先显示进行中的保存，其次提示磁盘文件缺失。
-  const status = saving
+  const toggleMode = useEditorStore((state) => state.toggleMode)
+  const activeDoc = useEditorStore((state) => (activeKey ? (state.openDocs[activeKey] ?? null) : null))
+
+  if (!activeDoc) return null
+
+  const wordCount = countWords(activeDoc.rawMarkdown)
+  const dirty = activeDoc.rawMarkdown !== activeDoc.savedRawMarkdown
+  const statusKey = activeDoc.saving
+    ? 'saving'
+    : activeDoc.isMissingOnDisk
+      ? 'missing'
+      : dirty
+        ? 'dirty'
+        : 'saved'
+  const statusLabel = activeDoc.saving
     ? t('workspace.saving')
-    : isMissingOnDisk
+    : activeDoc.isMissingOnDisk
       ? t('workspace.file-deleted')
       : dirty
         ? t('workspace.unsaved')
         : t('workspace.saved')
 
+  // 位于工作区内时仅显示相对路径，减少长前缀视觉噪声。
+  const displayPath = activeDoc.diskPath
+    ? workspaceRoot
+      ? relativeFromDirectory(workspaceRoot, activeDoc.diskPath)
+      : activeDoc.diskPath
+    : t('workspace.unsaved-document')
+
   return (
-    <footer className="flex h-6 shrink-0 items-center gap-3 border-t bg-panel px-3 text-[11px] text-muted-foreground">
-      <span className="font-medium text-panel-foreground">
+    <footer className="flex h-7 shrink-0 items-center gap-3 border-t bg-panel px-3 text-[11px] text-muted-foreground">
+      <button
+        type="button"
+        onClick={toggleMode}
+        title={`${t('workspace.toggle-source-mode')} (${formatShortcut(['/'])})`}
+        className="inline-flex h-5 items-center rounded-sm px-1.5 font-medium text-panel-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+      >
         {mode === 'wysiwyg' ? t('workspace.rich-text') : t('workspace.source')}
-      </span>
+      </button>
       <span className="font-mono tabular-nums">{t('workspace.word-count', { count: wordCount })}</span>
-      {rawMarkdown !== null && <span>{status}</span>}
-      <span className="ml-auto max-w-[55%] truncate font-mono">
-        {diskPath ?? t('workspace.unsaved-document')}
+      <span role="status" aria-live="polite" className="inline-flex items-center gap-1.5">
+        <span
+          aria-hidden="true"
+          className={cn('size-1.5 rounded-full', STATUS_DOT_STYLES[statusKey])}
+        />
+        <span className={cn(activeDoc.isMissingOnDisk && 'font-medium text-warning')}>
+          {statusLabel}
+        </span>
+      </span>
+      <span
+        className="ml-auto max-w-[55%] truncate font-mono"
+        title={activeDoc.diskPath ?? t('workspace.unsaved-document')}
+      >
+        {displayPath}
       </span>
     </footer>
   )
