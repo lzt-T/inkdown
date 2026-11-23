@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { initialSettings, t } from '@/lib/i18n'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { EditorPane } from '@/components/EditorPane'
 import { FileTree } from '@/components/FileTree'
@@ -428,21 +429,31 @@ function App(): React.JSX.Element {
           if (!open && !isClosingSave) setPendingCloseKey(null)
         }}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('workspace.close-unsaved-document')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('workspace.close-unsaved-description', {
-                name: pendingCloseDoc?.name ?? t('workspace.current-document')
-              })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+        <AlertDialogContent className="sm:max-w-[430px]">
+          <div className="flex items-start gap-3.5">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning/12 text-warning">
+              <AlertTriangle className="size-4" />
+            </div>
+            <AlertDialogHeader className="min-w-0 flex-1">
+              <AlertDialogTitle>{t('workspace.close-unsaved-document')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('workspace.close-unsaved-description', {
+                  name: pendingCloseDoc?.name ?? t('workspace.current-document')
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel variant="outline" disabled={isClosingSave}>
+            <AlertDialogCancel
+              variant="outline"
+              className="sm:mr-auto"
+              disabled={isClosingSave}
+            >
               {t('workspace.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
-              variant="destructive"
+              variant="outline"
+              className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive dark:border-destructive/40 dark:hover:bg-destructive/15"
               disabled={isClosingSave}
               onClick={() => {
                 if (pendingCloseKey) useEditorStore.getState().closeTab(pendingCloseKey)
@@ -453,6 +464,8 @@ function App(): React.JSX.Element {
             </AlertDialogAction>
             <Button
               type="button"
+              size="sm"
+              className="text-[13px]"
               disabled={isClosingSave}
               onClick={() => void handleSaveAndClosePendingTab()}
             >

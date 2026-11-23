@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
 import { useRef, useState } from 'react'
-import { ChevronsDownUp, FilePlus, FolderOpen, FolderPlus, FolderX } from 'lucide-react'
+import { ChevronsDownUp, FilePlus, FolderOpen, FolderPlus, FolderX, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { FileNode } from '../../../shared/contracts'
 import { EditingRow, TreeNode } from '@/components/FileTreeNode'
@@ -296,16 +296,21 @@ export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element 
         onOpenChange={(open) => !open && setPendingDelete(null)}
       >
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingDelete?.type === 'directory'
-                ? t('workspace.delete-folder')
-                : t('workspace.delete-file')}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('workspace.delete-description', { name: pendingDelete?.name })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+          <div className="flex items-start gap-3.5">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+              <Trash2 className="size-4" />
+            </div>
+            <AlertDialogHeader className="min-w-0 flex-1">
+              <AlertDialogTitle>
+                {pendingDelete?.type === 'directory'
+                  ? t('workspace.delete-folder')
+                  : t('workspace.delete-file')}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('workspace.delete-description', { name: pendingDelete?.name })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('workspace.cancel')}</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={() => void handleConfirmDelete()}>

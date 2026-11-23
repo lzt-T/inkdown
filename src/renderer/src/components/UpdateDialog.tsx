@@ -78,19 +78,27 @@ export function UpdateDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={!isWorking} className="sm:max-w-md">
-        <div className="flex items-start gap-4">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-info/12 text-info">
-            <UpdateIcon className="size-5" />
+      <DialogContent showCloseButton={!isWorking}>
+        <div className="flex items-start gap-3.5">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-info/12 text-info">
+            <UpdateIcon className="size-4" />
           </div>
-          <DialogHeader className="min-w-0 flex-1 text-left">
+          <DialogHeader className="min-w-0 flex-1">
             <DialogTitle>{`Inkdown ${updateState.version} ${t(copy.titleSuffix)}`}</DialogTitle>
-            <DialogDescription className="leading-6">{description}</DialogDescription>
+            <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
         </div>
         <DialogFooter>
-          <Button variant="outline" disabled={isWorking} onClick={() => onOpenChange(false)}>{t('workspace.later')}</Button>
-          <Button disabled={isWorking} onClick={onPrimaryAction}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-[13px]"
+            disabled={isWorking}
+            onClick={() => onOpenChange(false)}
+          >
+            {t('workspace.later')}
+          </Button>
+          <Button size="sm" className="text-[13px]" disabled={isWorking} onClick={onPrimaryAction}>
             {isWorking ? (
               <LoaderCircle className="animate-spin" />
             ) : updateState.action === 'download' ? (

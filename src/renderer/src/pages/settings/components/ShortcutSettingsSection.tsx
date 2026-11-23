@@ -34,33 +34,37 @@ export function ShortcutSettingsSection(): React.JSX.Element {
   useTranslation()
 
   return (
-    <div className="max-w-3xl">
-      <h2 className="text-base font-semibold text-foreground">{t('settings.keyboard-shortcuts')}</h2>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-        {t('settings.view-inkdown-keyboard-shortcuts-custom-shortcuts-are-not-supported-yet')}
-      </p>
+    <div>
+      <header className="border-b pb-4">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">
+          {t('settings.keyboard-shortcuts')}
+        </h2>
+        <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+          {t('settings.view-inkdown-keyboard-shortcuts-custom-shortcuts-are-not-supported-yet')}
+        </p>
+      </header>
 
-      <div className="mt-7 max-w-2xl space-y-7">
+      <div className="mt-5 space-y-5">
         {SHORTCUT_GROUPS.map((group) => (
           <section key={group.value} aria-labelledby={`shortcut-group-${group.value}`}>
             <h3
               id={`shortcut-group-${group.value}`}
-              className="text-sm font-medium text-foreground"
+              className="text-xs font-medium text-muted-foreground"
             >
               {t(group.label)}
             </h3>
-            <dl className="mt-3 divide-y border-y">
+            <dl className="mt-2 divide-y rounded-xl border bg-card/40">
               {group.shortcuts.map((shortcut) => (
                 <div
                   key={shortcut.label}
-                  className="flex min-h-12 items-center justify-between gap-4 py-3"
+                  className="flex min-h-10 items-center justify-between gap-4 px-3.5 py-2"
                 >
-                  <dt className="text-sm text-foreground">{t(shortcut.label)}</dt>
+                  <dt className="text-[13px] text-foreground">{t(shortcut.label)}</dt>
                   <dd className="flex shrink-0 items-center gap-1.5">
                     {[PRIMARY_MODIFIER, ...shortcut.keys].map((key, index) => (
                       <kbd
                         key={`${shortcut.label}-${key}-${index}`}
-                        className="inline-flex min-w-7 items-center justify-center rounded-md border bg-muted px-2 py-1 font-sans text-xs font-medium text-muted-foreground shadow-xs"
+                        className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border bg-muted/80 px-1.5 font-sans text-[11px] font-medium text-muted-foreground shadow-2xs"
                       >
                         {key}
                       </kbd>

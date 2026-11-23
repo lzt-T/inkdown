@@ -26,7 +26,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
-import { Input } from '@/components/ui/input'
 import { dirname } from '@/lib/markdown-paths'
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
@@ -96,14 +95,14 @@ export function EditingRow({
 
   return (
     <div
-      className="flex h-7 w-full items-center gap-1.5 px-2 text-panel-foreground"
+      className="relative flex h-7 w-full items-center gap-1.5 rounded-md bg-card px-2 text-[13px] text-foreground shadow-xs ring-1 ring-inset ring-ring/75 transition-[box-shadow,background-color] focus-within:ring-ring"
       style={{ paddingLeft: 10 + depth * 14 }}
     >
       {nodeType === 'directory' ? (
         isDirectoryExpanded ? (
-          <ChevronDown className="size-3.5 shrink-0" />
+          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronRight className="size-3.5 shrink-0" />
+          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
         )
       ) : (
         <span className="size-3.5 shrink-0" />
@@ -117,10 +116,13 @@ export function EditingRow({
       ) : (
         <FileText className="size-3.5 shrink-0 text-muted-foreground" />
       )}
-      <Input
+      <input
         ref={inputRef}
+        type="text"
         value={value}
         aria-label={nodeType === 'file' ? t('workspace.file-name') : t('workspace.folder-name')}
+        autoComplete="off"
+        spellCheck={false}
         onChange={(event) => onChange(event.target.value)}
         onBlur={() => {
           if (settledRef.current) return
@@ -151,7 +153,7 @@ export function EditingRow({
             onCancel()
           }
         }}
-        className="h-6 flex-1 rounded-sm bg-card px-1.5 py-0 text-[13px] shadow-none"
+        className="h-full min-w-0 flex-1 bg-transparent p-0 text-[13px] text-foreground outline-none selection:bg-ring/20 selection:text-foreground placeholder:text-muted-foreground"
       />
     </div>
   )

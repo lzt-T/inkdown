@@ -35,8 +35,8 @@ export function LanguageSettings(): React.JSX.Element {
   }
 
   return (
-    <div className="mt-7">
-      <label htmlFor="app-language" className="block text-sm font-medium text-foreground">
+    <div className="flex flex-col gap-3 border-b py-5 @min-[28rem]:flex-row @min-[28rem]:items-center @min-[28rem]:justify-between">
+      <label htmlFor="app-language" className="text-[13px] font-medium text-foreground">
         {t('settings.language')}
       </label>
       <Select
@@ -44,7 +44,7 @@ export function LanguageSettings(): React.JSX.Element {
         disabled={saving}
         onValueChange={(value) => void changeLanguage(value as LanguagePreference)}
       >
-        <SelectTrigger id="app-language" className="mt-3 w-full max-w-sm">
+        <SelectTrigger id="app-language" className="w-full @min-[28rem]:w-44">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

@@ -112,20 +112,24 @@ export function ProxySettingsSection(): React.JSX.Element {
   }, [applyLoadedProxy])
 
   return (
-    <div className="max-w-3xl">
-      <h2 className="text-base font-semibold text-foreground">{t('settings.network')}</h2>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-        {t('settings.configure-network-connections-for-inkdown-updates-github-image-storage-and-in-app-tra')}
-      </p>
+    <div>
+      <header className="border-b pb-4">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">
+          {t('settings.network')}
+        </h2>
+        <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+          {t('settings.configure-network-connections-for-inkdown-updates-github-image-storage-and-in-app-tra')}
+        </p>
+      </header>
 
-      <div className="mt-7">
-        <h3 className="text-sm font-medium text-foreground">{t('settings.proxy-mode')}</h3>
+      <div className="py-5">
+        <h3 className="text-[13px] font-medium text-foreground">{t('settings.proxy-mode')}</h3>
         {proxy ? (
           <div className="mt-3 flex flex-col items-start gap-5">
             <div
               role="group"
               aria-label={t('settings.proxy-mode')}
-              className="inline-grid grid-cols-3 rounded-md bg-muted p-1"
+              className="inline-grid grid-cols-3 rounded-lg bg-muted p-1"
             >
               {PROXY_MODE_OPTIONS.map((option) => {
                 const isSelected = mode === option.value
@@ -137,9 +141,9 @@ export function ProxySettingsSection(): React.JSX.Element {
                     disabled={isSaving}
                     onClick={() => handleModeChange(option.value)}
                     className={cn(
-                      'rounded-sm px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50',
+                      'inline-flex h-7 items-center justify-center rounded-md px-3 text-[13px] font-medium outline-none transition-[background-color,color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50',
                       isSelected
-                        ? 'bg-background text-foreground shadow-xs'
+                        ? 'bg-background text-foreground shadow-xs dark:bg-card'
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
@@ -150,9 +154,9 @@ export function ProxySettingsSection(): React.JSX.Element {
             </div>
 
             {mode === 'manual' && (
-              <div className="w-full max-w-2xl space-y-4 border-y py-5">
+              <div className="w-full max-w-lg space-y-4 rounded-xl border bg-card/50 p-4">
                 <div>
-                  <label htmlFor="proxy-server" className="text-sm font-medium text-foreground">
+                  <label htmlFor="proxy-server" className="text-[13px] font-medium text-foreground">
                     {t('settings.proxy-server')}
                   </label>
                   <Input
@@ -183,6 +187,8 @@ export function ProxySettingsSection(): React.JSX.Element {
 
                 <Button
                   type="button"
+                  size="sm"
+                  className="text-[13px]"
                   disabled={isSaving || !isDirty}
                   onClick={() => void persistProxy(mode, server)}
                 >
@@ -201,7 +207,7 @@ export function ProxySettingsSection(): React.JSX.Element {
             </Button>
           </div>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground">{t('settings.loading-proxy-settings')}</p>
+          <p className="mt-3 text-[13px] text-muted-foreground">{t('settings.loading-proxy-settings')}</p>
         )}
       </div>
     </div>

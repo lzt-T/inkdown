@@ -208,20 +208,24 @@ export function ImageSettingsSection(): React.JSX.Element {
   }, [applyLoadedSettings])
 
   return (
-    <div className="max-w-3xl">
-      <h2 className="text-base font-semibold text-foreground">{t('settings.images')}</h2>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-        {t('settings.choose-where-new-images-are-saved-existing-images-will-stay-in-place')}
-      </p>
+    <div>
+      <header className="border-b pb-4">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">
+          {t('settings.images')}
+        </h2>
+        <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+          {t('settings.choose-where-new-images-are-saved-existing-images-will-stay-in-place')}
+        </p>
+      </header>
 
-      <div className="mt-7">
-        <h3 className="text-sm font-medium text-foreground">{t('settings.storage-location')}</h3>
+      <div className="py-5">
+        <h3 className="text-[13px] font-medium text-foreground">{t('settings.storage-location')}</h3>
         {imageStorage ? (
           <div className="mt-3 space-y-5">
             <div
               role="group"
               aria-label={t('settings.image-storage-mode')}
-              className="inline-grid grid-cols-3 rounded-md bg-muted p-1"
+              className="inline-grid grid-cols-3 rounded-lg bg-muted p-1"
             >
               {IMAGE_STORAGE_MODES.map((mode) => {
                 const isSelected = selectedMode === mode
@@ -234,9 +238,9 @@ export function ImageSettingsSection(): React.JSX.Element {
                     disabled={isSaving}
                     onClick={() => void changeImageStorageMode(mode)}
                     className={cn(
-                      'inline-flex items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50',
+                      'inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-[13px] font-medium outline-none transition-[background-color,color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50',
                       isSelected
-                        ? 'bg-background text-foreground shadow-xs'
+                        ? 'bg-background text-foreground shadow-xs dark:bg-card'
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
@@ -257,7 +261,7 @@ export function ImageSettingsSection(): React.JSX.Element {
               <div>
                 <label
                   htmlFor="relative-image-directory"
-                  className="text-sm font-medium text-foreground"
+                  className="text-[13px] font-medium text-foreground"
                 >
                   {t('settings.relative-directory')}
                 </label>
@@ -267,7 +271,7 @@ export function ImageSettingsSection(): React.JSX.Element {
                   disabled={isSaving}
                   aria-invalid={Boolean(relativeDirectoryError)}
                   aria-describedby="relative-image-directory-help"
-                  className="mt-2 block max-w-xl"
+                  className="mt-2 block max-w-md"
                   placeholder="assets"
                   onChange={(event) => {
                     setRelativeDirectory(event.target.value)
@@ -299,10 +303,13 @@ export function ImageSettingsSection(): React.JSX.Element {
 
             {selectedMode === 'global' && (
               <div>
-                <label htmlFor="global-image-directory" className="text-sm font-medium text-foreground">
+                <label
+                  htmlFor="global-image-directory"
+                  className="text-[13px] font-medium text-foreground"
+                >
                   {t('settings.global-directory-2')}
                 </label>
-                <div className="mt-2 flex flex-col gap-2 @min-[36rem]:flex-row">
+                <div className="mt-2 flex max-w-lg flex-col gap-2 @min-[28rem]:flex-row">
                   <Input
                     id="global-image-directory"
                     value={imageStorage.globalDirectory ?? ''}
@@ -312,6 +319,8 @@ export function ImageSettingsSection(): React.JSX.Element {
                   <Button
                     type="button"
                     variant="outline"
+                    size="sm"
+                    className="text-[13px]"
                     disabled={isSaving}
                     onClick={() => void selectGlobalDirectory()}
                   >
@@ -328,13 +337,13 @@ export function ImageSettingsSection(): React.JSX.Element {
             )}
 
             {selectedMode === 'github' && (
-              <div className="max-w-2xl space-y-5 border-y py-5">
+              <div className="max-w-lg space-y-4 rounded-xl border bg-card/50 p-4">
                 <div className="flex items-start gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                     <GitBranch className="size-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="text-[13px] font-medium text-foreground">
                       {t('settings.public-github-repository')}
                     </p>
                     <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
@@ -346,7 +355,10 @@ export function ImageSettingsSection(): React.JSX.Element {
                 </div>
 
                 <div>
-                  <label htmlFor="github-image-repository" className="text-sm font-medium text-foreground">
+                  <label
+                    htmlFor="github-image-repository"
+                    className="text-[13px] font-medium text-foreground"
+                  >
                     {t('settings.repository')}
                   </label>
                   <Input
@@ -366,18 +378,21 @@ export function ImageSettingsSection(): React.JSX.Element {
                 </div>
 
                 <div>
-                  <label htmlFor="github-image-token" className="text-sm font-medium text-foreground">
+                  <label
+                    htmlFor="github-image-token"
+                    className="text-[13px] font-medium text-foreground"
+                  >
                     {t('settings.github-token-label')}
                   </label>
                   <div className="relative mt-2">
-                    <KeyRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <KeyRound className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="github-image-token"
                       type="password"
                       value={token}
                       disabled={isSaving}
                       autoComplete="off"
-                      className="pl-9"
+                      className="pl-8"
                       placeholder={
                         githubStatus?.hasToken
                           ? t('settings.leave-blank-to-keep-the-saved-token')
@@ -418,7 +433,13 @@ export function ImageSettingsSection(): React.JSX.Element {
                 )}
 
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" disabled={isSaving} onClick={() => void configureGitHub()}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="text-[13px]"
+                    disabled={isSaving}
+                    onClick={() => void configureGitHub()}
+                  >
                     {isSaving ? <LoaderCircle className="animate-spin" /> : <GitBranch />}
                     {githubStatus?.settings
                       ? t('settings.save-and-enable')
@@ -428,6 +449,8 @@ export function ImageSettingsSection(): React.JSX.Element {
                     <Button
                       type="button"
                       variant="outline"
+                      size="sm"
+                      className="text-[13px] hover:border-destructive/40 hover:text-destructive"
                       disabled={isSaving}
                       onClick={() => setConfirmClearOpen(true)}
                     >
@@ -448,18 +471,23 @@ export function ImageSettingsSection(): React.JSX.Element {
             </Button>
           </div>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground">{t('settings.loading-image-settings')}</p>
+          <p className="mt-3 text-[13px] text-muted-foreground">{t('settings.loading-image-settings')}</p>
         )}
       </div>
 
       <AlertDialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('settings.clear-github-confirm-title')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('settings.clear-github-confirm-description')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+          <div className="flex items-start gap-3.5">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+              <Trash2 className="size-4" />
+            </div>
+            <AlertDialogHeader className="min-w-0 flex-1">
+              <AlertDialogTitle>{t('settings.clear-github-confirm-title')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('settings.clear-github-confirm-description')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSaving}>{t('workspace.cancel')}</AlertDialogCancel>
             <AlertDialogAction

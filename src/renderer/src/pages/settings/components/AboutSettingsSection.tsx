@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
-import { Download, Info, LoaderCircle, RefreshCw } from 'lucide-react'
+import { Download, LoaderCircle, RefreshCw } from 'lucide-react'
 import type { AppUpdateState } from '../../../../../shared/contracts'
+import inkdownLogo from '@/assets/inkdown-logo.png'
 import { Button } from '@/components/ui/button'
 import type { UpdateCheckViewState } from '@/hooks/useAppUpdater'
 
@@ -69,41 +70,53 @@ export function AboutSettingsSection({
   }
 
   return (
-    <div className="max-w-3xl">
-      <h2 className="text-base font-semibold text-foreground">{t('settings.about')}</h2>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('settings.view-the-inkdown-version-and-get-updates')}</p>
+    <div>
+      <header className="border-b pb-4">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">
+          {t('settings.about')}
+        </h2>
+        <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+          {t('settings.view-the-inkdown-version-and-get-updates')}
+        </p>
+      </header>
 
-      <div className="mt-7 max-w-2xl">
-        <h3 className="text-sm font-medium text-foreground">{t('settings.version')}</h3>
-        <div className="mt-3 flex flex-col gap-4 border-y py-4 @min-[36rem]:flex-row @min-[36rem]:items-center @min-[36rem]:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-              <Info className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">Inkdown</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {currentVersion ? t('settings.version-value', { v0: currentVersion }) : t('settings.loading-version')}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{statusLabel}</p>
+      <div className="mt-5 flex flex-col gap-4 rounded-xl border bg-card/50 p-4 @min-[28rem]:flex-row @min-[28rem]:items-center @min-[28rem]:justify-between">
+        <div className="flex min-w-0 items-start gap-3.5">
+          <img
+            src={inkdownLogo}
+            alt=""
+            aria-hidden="true"
+            className="size-10 shrink-0 rounded-lg shadow-xs"
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <p className="text-sm font-semibold text-foreground">Inkdown</p>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {currentVersion
+                  ? t('settings.version-value', { v0: currentVersion })
+                  : t('settings.loading-version')}
+              </span>
             </div>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{statusLabel}</p>
           </div>
-          <Button
-            type="button"
-            variant={updateState ? 'default' : 'outline'}
-            disabled={isPending}
-            onClick={handleUpdateAction}
-          >
-            {isPending ? (
-              <LoaderCircle className="animate-spin" />
-            ) : updateState ? (
-              <Download />
-            ) : (
-              <RefreshCw />
-            )}
-            {buttonLabel}
-          </Button>
         </div>
+        <Button
+          type="button"
+          size="sm"
+          className="shrink-0 text-[13px]"
+          variant={updateState ? 'default' : 'outline'}
+          disabled={isPending}
+          onClick={handleUpdateAction}
+        >
+          {isPending ? (
+            <LoaderCircle className="animate-spin" />
+          ) : updateState ? (
+            <Download />
+          ) : (
+            <RefreshCw />
+          )}
+          {buttonLabel}
+        </Button>
       </div>
     </div>
   )
