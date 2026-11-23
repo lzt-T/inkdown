@@ -255,7 +255,7 @@ export function Titlebar({
           alt=""
           aria-hidden="true"
           draggable={false}
-          className="pointer-events-none mx-1 size-4.5 shrink-0 select-none"
+          className="pointer-events-none mx-1 size-5 shrink-0 select-none"
         />
         {!isSettingsOpen && (
           <>
