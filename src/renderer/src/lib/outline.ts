@@ -13,11 +13,30 @@ export interface OutlineTreeNode extends OutlineItem {
 
 // Markdown parser provides source-aware heading and blockquote tokens.
 const md = new MarkdownIt({ html: false })
+// 匹配位于文档开头的 YAML（---）或 TOML（+++）Frontmatter 块。
+const LEADING_FRONTMATTER_REGEX = /^(-{3,}|\+{3,})[ \t]*\r?\n(?:[\s\S]*?\r?\n)?\1[ \t]*(?:\r?\n|$)/
+
+/** 剥离文档头部 Frontmatter 并返回剩余正文与起始行偏移。 */
+function stripLeadingFrontmatter(markdown: string): { body: string; lineOffset: number } {
+  const match = LEADING_FRONTMATTER_REGEX.exec(markdown)
+  if (!match) {
+    return { body: markdown, lineOffset: 0 }
+  }
+
+  // 统计被剥离元数据块占用的换行数，以保持源码大纲行号准确。
+  const header = match[0]
+  const lineOffset = header.match(/\n/g)?.length ?? 0
+  return {
+    body: markdown.slice(header.length),
+    lineOffset
+  }
+}
 
 /** Parses non-quoted Markdown headings into a flat document outline. */
 export function parseOutline(markdown: string): OutlineItem[] {
+  const { body, lineOffset } = stripLeadingFrontmatter(markdown)
   // Parsed tokens retain container nesting and source line mappings.
-  const tokens = md.parse(markdown, {})
+  const tokens = md.parse(body, {})
   // Outline items exclude headings nested inside blockquotes.
   const items: OutlineItem[] = []
   // Blockquote depth tracks both ordinary and nested quote containers.
@@ -45,7 +64,7 @@ export function parseOutline(markdown: string): OutlineItem[] {
     items.push({
       level,
       text: inline?.content?.replace(/\s+/g, ' ').trim() || '',
-      line: line + 1
+      line: line + lineOffset + 1
     })
   }
 
@@ -78,8 +97,9 @@ export function buildOutlineTree(items: OutlineItem[]): OutlineTreeNode[] {
 
 /** Counts visible words and CJK characters in Markdown source. */
 export function countWords(markdown: string): number {
+  const { body } = stripLeadingFrontmatter(markdown)
   // Formatting syntax is removed before language-specific counting.
-  const text = markdown
+  const text = body
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`[^`]*`/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
