@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import type {
   AppUpdateCheckResult,
@@ -90,21 +90,26 @@ export function useAppUpdater(): UseAppUpdaterResult {
     status: 'idle',
     version: null
   })
-  // Dirty count controls the install explanation and save flow.
-  const dirtyCount = useEditorStore(
-    (state) =>
-      Object.values(state.openDocs).filter(
-        (document) => document.rawMarkdown !== document.savedRawMarkdown
-      ).length
-  )
+  // 直接遍历 openDocs 统计未保存文档数，避免每次 store 变更分配临时数组。
+  const dirtyCount = useEditorStore((state) => {
+    let count = 0
+    for (const key in state.openDocs) {
+      const document = state.openDocs[key]
+      if (document.rawMarkdown !== document.savedRawMarkdown) count += 1
+    }
+    return count
+  })
 
   /** Opens update details from the toast or titlebar entry. */
-  const openDialog = (): void => setIsDialogOpen(true)
+  const openDialog = useCallback((): void => setIsDialogOpen(true), [])
 
   /** Closes update details only while no update action is running. */
-  const setDialogOpen = (open: boolean): void => {
-    if (!isWorking) setIsDialogOpen(open)
-  }
+  const setDialogOpen = useCallback(
+    (open: boolean): void => {
+      if (!isWorking) setIsDialogOpen(open)
+    },
+    [isWorking]
+  )
 
   /** Checks for updates once and stores a user-facing result for this session. */
   const checkForUpdates = async (): Promise<void> => {

@@ -102,16 +102,16 @@ function sendToRenderer(channel: string, ...args: unknown[]): void {
 
 /** Persists a recently opened workspace and synchronizes it with the renderer. */
 async function recordRecentWorkspace(workspace: string): Promise<void> {
-  // Updated recent state is the event payload consumed by the renderer.
-  const recent = await addRecentWorkspace(workspace)
-  sendToRenderer(IPC_CHANNELS.recentChanged, recent)
+  // 仅当最近列表实际变化时才广播给渲染进程。
+  const { recent, changed } = await addRecentWorkspace(workspace)
+  if (changed) sendToRenderer(IPC_CHANNELS.recentChanged, recent)
 }
 
 /** Persists a recently used file and synchronizes it with the renderer. */
 async function recordRecentFile(filePath: string): Promise<void> {
-  // Updated recent state is the event payload consumed by the renderer.
-  const recent = await addRecentFile(filePath)
-  sendToRenderer(IPC_CHANNELS.recentChanged, recent)
+  // 仅当最近列表实际变化时才广播给渲染进程。
+  const { recent, changed } = await addRecentFile(filePath)
+  if (changed) sendToRenderer(IPC_CHANNELS.recentChanged, recent)
 }
 
 /** 为授权本地资源注册应用协议。 */
@@ -249,12 +249,33 @@ function registerIpcHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.fileRename,
     async (_event, payload: { path: string; name: string }) => {
-      return renameEntry(payload.path, payload.name)
+      // 标记新旧路径为内部写入，避免重命名瞬间触发旧路径缺失或外部变更误报。
+      const resolvedOld = resolve(payload.path)
+      beginInternalWrite(resolvedOld)
+      let renamedPath: string | null = null
+      try {
+        const node = await renameEntry(payload.path, payload.name)
+        renamedPath = node.path
+        beginInternalWrite(renamedPath)
+        return node
+      } finally {
+        const succeeded = renamedPath !== null
+        endInternalWrite(resolvedOld, succeeded)
+        if (renamedPath) endInternalWrite(renamedPath, true)
+      }
     }
   )
 
   ipcMain.handle(IPC_CHANNELS.fileTrash, async (_event, target: string) => {
-    await trashEntry(target)
+    const resolved = resolve(target)
+    beginInternalWrite(resolved)
+    let succeeded = false
+    try {
+      await trashEntry(target)
+      succeeded = true
+    } finally {
+      endInternalWrite(resolved, succeeded)
+    }
   })
 
   ipcMain.handle(IPC_CHANNELS.fileReveal, async (_event, target: string) => {

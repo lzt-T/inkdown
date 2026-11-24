@@ -41,7 +41,13 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.fileCreateFolder, { directory, name }),
     rename: (path: string, name: string) => ipcRenderer.invoke(IPC_CHANNELS.fileRename, { path, name }),
     trash: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.fileTrash, path),
-    reveal: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.fileReveal, path)
+    reveal: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.fileReveal, path),
+    /** 订阅单个已跟踪文件的外部内容变更事件。 */
+    onChanged: (callback: (filePath: string) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, filePath: string): void => callback(filePath)
+      ipcRenderer.on(IPC_CHANNELS.fileChanged, listener)
+      return () => { ipcRenderer.removeListener(IPC_CHANNELS.fileChanged, listener) }
+    }
   },
   image: {
     import: (request: ImportImageRequest) =>

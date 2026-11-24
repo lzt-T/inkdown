@@ -1,6 +1,7 @@
 import { t } from '@/lib/i18n'
 import { formatErrorMessage } from '@/lib/error-message'
-import { useEffect, useRef } from 'react'
+import { cn } from '@/lib/utils'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MilkdownEditor } from 'zt-react-milkdown'
 import { toast } from 'sonner'
@@ -10,6 +11,9 @@ const HEADING_SELECTOR =
   '.ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6'
 // Active heading line sits below the scrollport edge to absorb pixel rounding.
 const ACTIVE_HEADING_OFFSET = 12
+// 本地图片与远端 HTTPS 图片允许渲染在富文本编辑器中。
+const ALLOWED_IMAGE_PROTOCOLS = ['inkdown-file:', 'https:']
+const MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024
 
 /** Returns headings that belong to the document outline rather than blockquotes. */
 function getOutlineHeadings(container: HTMLElement): HTMLElement[] {
@@ -18,8 +22,10 @@ function getOutlineHeadings(container: HTMLElement): HTMLElement[] {
   return headings.filter((heading) => !heading.closest('blockquote'))
 }
 
-/** 渲染支持本地图片导入的 Milkdown 编辑器。 */
-export function MilkdownSurface({
+/** 渲染支持本地图片导入、滚动保活与大纲同步的 Milkdown 编辑器。 */
+export const MilkdownSurface = memo(function MilkdownSurface({
+  documentKey,
+  isActive,
   value,
   theme,
   documentPath,
@@ -28,11 +34,13 @@ export function MilkdownSurface({
   onActiveHeadingChange,
   onConsumeHeadingTarget
 }: {
+  documentKey: string
+  isActive: boolean
   value: string
   theme: 'light' | 'dark'
   documentPath: string | null
   headingTarget: { index: number; nonce: number } | null
-  onChange: (markdown: string) => void
+  onChange: (key: string, markdown: string) => void
   onActiveHeadingChange: (index: number) => void
   onConsumeHeadingTarget: () => void
 }): React.JSX.Element {
@@ -42,9 +50,23 @@ export function MilkdownSurface({
   const containerRef = useRef<HTMLDivElement>(null)
   // Navigation flag prevents programmatic scrolling from replacing the clicked heading.
   const isOutlineNavigationRef = useRef(false)
+  // 记录最新文档路径与激活状态，避免滚动与上传闭包捕获旧值。
+  const documentPathRef = useRef(documentPath)
+  const isActiveRef = useRef(isActive)
+  // 记录上次上报的活动标题与滚动位置，支持多标签保活恢复与去重通知。
+  const lastActiveHeadingRef = useRef<number | null>(null)
+  const savedScrollTopRef = useRef(0)
+
+  useEffect(() => {
+    documentPathRef.current = documentPath
+  }, [documentPath])
+
+  useEffect(() => {
+    isActiveRef.current = isActive
+  }, [isActive])
 
   /** 将图片导入文档资源目录并返回编辑器可访问地址。 */
-  const handleUpload = async (file: File): Promise<string> => {
+  const handleUpload = useCallback(async (file: File): Promise<string> => {
     try {
       // Byte payload crosses the preload bridge to the main process.
       const data = new Uint8Array(await file.arrayBuffer())
@@ -52,7 +74,7 @@ export function MilkdownSurface({
       const result = await window.api.image.import({
         name: file.name || 'image.png',
         data,
-        documentPath,
+        documentPath: documentPathRef.current,
         mimeType: file.type
       })
       if (result.fallbackReason === 'unsaved-document') {
@@ -70,17 +92,27 @@ export function MilkdownSurface({
       })
       throw error
     }
-  }
+  }, [])
 
-  // 图片上传配置允许受保护的本地协议和 GitHub 返回的 HTTPS 地址。
-  const imageUploadConfig = {
-    upload: handleUpload,
-    maxFileSize: 10 * 1024 * 1024,
-    allowedProtocols: ['inkdown-file:', 'https:']
-  }
+  // 稳定图片上传配置引用，避免无谓触发编辑器内部更新。
+  const imageUploadConfig = useMemo(
+    () => ({
+      upload: handleUpload,
+      maxFileSize: MAX_UPLOAD_FILE_SIZE,
+      allowedProtocols: ALLOWED_IMAGE_PROTOCOLS
+    }),
+    [handleUpload]
+  )
+
+  const handleEditorChange = useCallback(
+    (markdown: string) => {
+      onChange(documentKey, markdown)
+    },
+    [documentKey, onChange]
+  )
 
   useEffect(() => {
-    if (!headingTarget || !containerRef.current) return
+    if (!isActive || !headingTarget || !containerRef.current) return
     // Filtered headings share the same indexes as the outline panel.
     const headings = getOutlineHeadings(containerRef.current)
     // Requested heading must exist before navigation state changes.
@@ -91,10 +123,11 @@ export function MilkdownSurface({
     }
 
     isOutlineNavigationRef.current = true
+    lastActiveHeadingRef.current = headingTarget.index
     onActiveHeadingChange(headingTarget.index)
     targetHeading.scrollIntoView({ behavior: 'smooth', block: 'start' })
     onConsumeHeadingTarget()
-  }, [headingTarget, onActiveHeadingChange, onConsumeHeadingTarget])
+  }, [isActive, headingTarget, onActiveHeadingChange, onConsumeHeadingTarget])
 
   useEffect(() => {
     // Mounted editor container scopes the scrollport and rendered headings.
@@ -105,10 +138,11 @@ export function MilkdownSurface({
     let editor: HTMLElement | null = null
     // Animation frame batches high-frequency scroll events.
     let animationFrameId: number | null = null
+    let timer: number | null = null
 
     /** Selects the nearest outline heading above the activation line. */
     const updateActiveHeading = (): void => {
-      if (!editor || isOutlineNavigationRef.current) return
+      if (!editor || !isActiveRef.current || isOutlineNavigationRef.current) return
       // Current headings reflect Milkdown content and exclude blockquotes.
       const headings = getOutlineHeadings(container)
       if (headings.length === 0) return
@@ -125,11 +159,17 @@ export function MilkdownSurface({
         activeIndex = index
       }
 
-      onActiveHeadingChange(activeIndex)
+      if (lastActiveHeadingRef.current !== activeIndex) {
+        lastActiveHeadingRef.current = activeIndex
+        onActiveHeadingChange(activeIndex)
+      }
     }
 
     /** Schedules one active-heading calculation for the current animation frame. */
     const handleEditorScroll = (): void => {
+      if (editor && isActiveRef.current) {
+        savedScrollTopRef.current = editor.scrollTop
+      }
       if (animationFrameId !== null) return
       animationFrameId = window.requestAnimationFrame(() => {
         animationFrameId = null
@@ -157,21 +197,25 @@ export function MilkdownSurface({
       isOutlineNavigationRef.current = false
     }
 
-    // Delayed setup waits for Milkdown to render its ProseMirror document.
-    const timer = window.setTimeout(() => {
-      // Scrollable editor element bounds heading visibility calculations.
+    const bindScrollListeners = (): boolean => {
       editor = container.querySelector<HTMLElement>('.zt-md-editor')
-      if (!editor) return
+      if (!editor) return false
       editor.addEventListener('scroll', handleEditorScroll, { passive: true })
       editor.addEventListener('scrollend', handleEditorScrollEnd)
       editor.addEventListener('wheel', handleManualScrollIntent, { passive: true })
       editor.addEventListener('pointerdown', handleManualScrollIntent)
       editor.addEventListener('keydown', handleManualScrollIntent)
       updateActiveHeading()
-    }, 250)
+      return true
+    }
+
+    // 优先同步绑定，若 Milkdown 节点仍在异步挂载则短暂延迟重试。
+    if (!bindScrollListeners()) {
+      timer = window.setTimeout(bindScrollListeners, 250)
+    }
 
     return () => {
-      window.clearTimeout(timer)
+      if (timer !== null) window.clearTimeout(timer)
       editor?.removeEventListener('scroll', handleEditorScroll)
       editor?.removeEventListener('scrollend', handleEditorScrollEnd)
       editor?.removeEventListener('wheel', handleManualScrollIntent)
@@ -180,17 +224,44 @@ export function MilkdownSurface({
       if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId)
       isOutlineNavigationRef.current = false
     }
-  }, [value, theme, onActiveHeadingChange])
+  }, [onActiveHeadingChange])
+
+  // 切回已保活的标签时恢复先前滚动位置并同步当前大纲高亮。
+  useEffect(() => {
+    if (!isActive || !containerRef.current) return
+    const container = containerRef.current
+    const frameId = window.requestAnimationFrame(() => {
+      const editor = container.querySelector<HTMLElement>('.zt-md-editor')
+      if (!editor) return
+      if (savedScrollTopRef.current > 0) {
+        editor.scrollTop = savedScrollTopRef.current
+      }
+      const headings = getOutlineHeadings(container)
+      if (headings.length === 0) return
+      const activationLine = editor.getBoundingClientRect().top + ACTIVE_HEADING_OFFSET
+      let activeIndex = 0
+      for (let index = 0; index < headings.length; index += 1) {
+        if (headings[index].getBoundingClientRect().top > activationLine) break
+        activeIndex = index
+      }
+      lastActiveHeadingRef.current = activeIndex
+      onActiveHeadingChange(activeIndex)
+    })
+    return () => window.cancelAnimationFrame(frameId)
+  }, [isActive, onActiveHeadingChange])
 
   return (
     <div
       ref={containerRef}
       spellCheck={false}
-      className="inkdown-editor-surface min-h-0 flex-1 overflow-hidden"
+      className={cn(
+        'inkdown-editor-surface min-h-0 flex-1 overflow-hidden',
+        !isActive && 'hidden'
+      )}
     >
       <MilkdownEditor
         value={value}
-        onChange={onChange}
+        onChange={handleEditorChange}
         theme={theme}
         locale={i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en-US'}
         maxHeight="100%"
@@ -200,4 +271,4 @@ export function MilkdownSurface({
       />
     </div>
   )
-}
+})

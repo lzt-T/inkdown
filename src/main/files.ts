@@ -7,8 +7,11 @@ import { isAuthorized, isInside } from './security'
 import { MARKDOWN_EXTENSIONS, type FileNode, type ImportImageResult, type OpenFileData } from '../shared/contracts'
 
 
+// 复用单个排序器实例，避免大目录排序时反复构造本地化比较规则。
+const FILE_NAME_COLLATOR = new Intl.Collator('zh-CN', { sensitivity: 'base', numeric: true })
+
 function sortedName(a: string, b: string): number {
-  return a.localeCompare(b, 'zh-CN', { sensitivity: 'base', numeric: true })
+  return FILE_NAME_COLLATOR.compare(a, b)
 }
 
 export async function scanDir(directory: string): Promise<FileNode[]> {
@@ -37,9 +40,19 @@ export async function scanDir(directory: string): Promise<FileNode[]> {
   ]
 }
 
+/** 单遍统计换行符类型，避免大文档分配正则匹配数组。 */
 function detectNewline(content: string): '\r\n' | '\n' {
-  const crlf = (content.match(/\r\n/g) ?? []).length
-  const lf = (content.match(/(?<!\r)\n/g) ?? []).length
+  let crlf = 0
+  let lf = 0
+  for (let index = 0; index < content.length; index += 1) {
+    const code = content.charCodeAt(index)
+    if (code === 13 && content.charCodeAt(index + 1) === 10) {
+      crlf += 1
+      index += 1
+    } else if (code === 10) {
+      lf += 1
+    }
+  }
   return crlf > lf ? '\r\n' : '\n'
 }
 

@@ -38,6 +38,26 @@ export function isInsideDir(directory: string, target: string): boolean {
   return right === left || right.startsWith(`${left}/`)
 }
 
+/** 若目标路径位于旧前缀自身或子路径下，则替换为新前缀并保留新前缀分隔符。 */
+export function replacePathPrefix(
+  targetPath: string,
+  oldPrefix: string,
+  newPrefix: string
+): string | null {
+  const normalizedTarget = trimTrailingSlash(normalizeSlashes(targetPath))
+  const normalizedOld = trimTrailingSlash(normalizeSlashes(oldPrefix))
+  const lowerTarget = normalizedTarget.toLowerCase()
+  const lowerOld = normalizedOld.toLowerCase()
+  const cleanNewPrefix = newPrefix.replace(/[\\/]+$/, '')
+
+  if (lowerTarget === lowerOld) return cleanNewPrefix
+  if (!lowerTarget.startsWith(`${lowerOld}/`)) return null
+
+  const suffix = normalizedTarget.slice(normalizedOld.length + 1)
+  const separator = newPrefix.includes('\\') && !newPrefix.includes('/') ? '\\' : '/'
+  return `${cleanNewPrefix}${separator}${suffix.replace(/\//g, separator)}`
+}
+
 export function resolveRelative(baseDirectory: string, relativePath: string): string {
   const base = normalizeSlashes(baseDirectory)
   const relative = normalizeSlashes(relativePath)
@@ -98,10 +118,12 @@ export function isFileUrl(value: string): boolean {
   return value.trim().toLowerCase().startsWith('file:')
 }
 
+/** 按括号平衡扫描并转换 Markdown 图片路径，无图片标记时直接短路返回。 */
 function transformMarkdownImages(
   markdown: string,
   transform: (source: string) => string
 ): string {
+  if (!markdown.includes('![')) return markdown
   let output = ''
   let cursor = 0
 
@@ -121,7 +143,8 @@ function transformMarkdownImages(
     }
 
     const sourceStart = altEnd + 2
-    let depth = 0
+    // sourceStart 已跳过开括号 (，初始嵌套深度为 1。
+    let depth = 1
     let sourceEnd = sourceStart
     for (let index = sourceStart; index < markdown.length; index += 1) {
       const char = markdown[index]

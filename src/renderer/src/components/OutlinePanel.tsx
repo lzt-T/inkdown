@@ -1,16 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
-import { buildOutlineTree, type OutlineItem, type OutlineTreeNode } from '@/lib/outline'
+import { buildOutlineTree, parseOutline, type OutlineTreeNode } from '@/lib/outline'
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
-
-interface OutlinePanelProps {
-  documentKey: string | null
-  items: OutlineItem[]
-}
 
 interface OutlineTreeItemProps {
   node: OutlineTreeNode
@@ -102,11 +97,15 @@ function OutlineTreeItem({
   )
 }
 
-/** Renders a collapsible heading tree for the active document. */
-export function OutlinePanel({ documentKey, items }: OutlinePanelProps): React.JSX.Element {
+/** 仅在大纲面板挂载时订阅当前文档内容并延迟派生标题树，避免侧栏关闭时的解析开销。 */
+export const OutlinePanel = memo(function OutlinePanel(): React.JSX.Element {
   // 订阅语言变更，使当前界面文案同步刷新。
   useTranslation()
 
+  const documentKey = useEditorStore((state) => state.activeKey)
+  const rawMarkdown = useEditorStore((state) =>
+    state.activeKey ? (state.openDocs[state.activeKey]?.rawMarkdown ?? '') : ''
+  )
   // Active heading follows the editor viewport.
   const activeHeading = useEditorStore((state) => state.activeHeading)
   // Direct selection updates the clicked heading before editor navigation begins.
@@ -121,6 +120,10 @@ export function OutlinePanel({ documentKey, items }: OutlinePanelProps): React.J
   const [collapsedIndexesByDocument, setCollapsedIndexesByDocument] = useState<
     Record<string, Set<number>>
   >({})
+
+  // 延迟更新大纲树，避免长文档快速输入时同步阻塞主线程。
+  const deferredMarkdown = useDeferredValue(rawMarkdown)
+  const items = useMemo(() => parseOutline(deferredMarkdown), [deferredMarkdown])
   // Tree structure is derived from the filtered flat outline.
   const tree = useMemo(() => buildOutlineTree(items), [items])
   // Current document collapse state defaults to fully expanded.
@@ -129,22 +132,28 @@ export function OutlinePanel({ documentKey, items }: OutlinePanelProps): React.J
     : EMPTY_COLLAPSED_NODE_INDEXES
 
   /** Toggles one branch without changing the selected heading. */
-  const toggleNode = (index: number): void => {
-    if (!documentKey) return
-    setCollapsedIndexesByDocument((current) => {
-      // New Set keeps React state updates immutable.
-      const nextIndexes = new Set(current[documentKey] ?? EMPTY_COLLAPSED_NODE_INDEXES)
-      if (nextIndexes.has(index)) nextIndexes.delete(index)
-      else nextIndexes.add(index)
-      return { ...current, [documentKey]: nextIndexes }
-    })
-  }
+  const toggleNode = useCallback(
+    (index: number): void => {
+      if (!documentKey) return
+      setCollapsedIndexesByDocument((current) => {
+        // New Set keeps React state updates immutable.
+        const nextIndexes = new Set(current[documentKey] ?? EMPTY_COLLAPSED_NODE_INDEXES)
+        if (nextIndexes.has(index)) nextIndexes.delete(index)
+        else nextIndexes.add(index)
+        return { ...current, [documentKey]: nextIndexes }
+      })
+    },
+    [documentKey]
+  )
 
   /** Selects a heading immediately before requesting editor navigation. */
-  const selectHeading = (index: number): void => {
-    setActiveHeading(index)
-    scrollToHeading(index)
-  }
+  const selectHeading = useCallback(
+    (index: number): void => {
+      setActiveHeading(index)
+      scrollToHeading(index)
+    },
+    [scrollToHeading, setActiveHeading]
+  )
 
   // Minimal nearest-edge scrolling avoids repositioning visible headings.
   useEffect(() => {
@@ -190,4 +199,4 @@ export function OutlinePanel({ documentKey, items }: OutlinePanelProps): React.J
       </div>
     </div>
   )
-}
+})

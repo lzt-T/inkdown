@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Code2,
   Download,
@@ -193,7 +193,7 @@ function TitlebarAction({
 }
 
 /** Renders the native window toolbar and primary editor actions. */
-export function Titlebar({
+export const Titlebar = memo(function Titlebar({
   isSettingsOpen,
   updateState,
   downloadProgress,
@@ -205,31 +205,30 @@ export function Titlebar({
   // 订阅语言变更，使当前界面文案同步刷新。
   useTranslation()
 
-  // Editor state and actions power the toolbar controls.
-  const {
-    activeKey,
-    openDocs,
-    tabOrder,
-    sidebarOpen,
-    mode,
-    theme,
-    toggleSidebar,
-    toggleMode,
-    toggleTheme
-  } = useEditorStore()
+  // 按字段精准订阅标题栏所需状态，避免文档正文或大纲变化触发整栏重渲染。
+  const tabCount = useEditorStore((state) => state.tabOrder.length)
+  const activeDocName = useEditorStore((state) =>
+    state.activeKey ? (state.openDocs[state.activeKey]?.name ?? null) : null
+  )
+  const dirty = useEditorStore((state) => {
+    const doc = state.activeKey ? state.openDocs[state.activeKey] : null
+    return doc ? doc.rawMarkdown !== doc.savedRawMarkdown : false
+  })
+  const sidebarOpen = useEditorStore((state) => state.sidebarOpen)
+  const mode = useEditorStore((state) => state.mode)
+  const theme = useEditorStore((state) => state.theme)
+  const toggleSidebar = useEditorStore((state) => state.toggleSidebar)
+  const toggleMode = useEditorStore((state) => state.toggleMode)
+  const toggleTheme = useEditorStore((state) => state.toggleTheme)
   // Maximized state selects the correct native window affordance.
   const [maximized, setMaximized] = useState(false)
-  // Active document provides the toolbar title and save state.
-  const activeDoc = activeKey ? openDocs[activeKey] : null
-  // Dirty state adds an unsaved indicator beside the document title.
-  const dirty = activeDoc ? activeDoc.rawMarkdown !== activeDoc.savedRawMarkdown : false
   // 多标签页模式下 TabsBar 与文件树已展示文件名和目录名，顶栏居中留白减少冗余。
-  const isSingleDocument = tabOrder.length === 1
+  const isSingleDocument = tabCount === 1
   const centerTitle = isSettingsOpen
     ? t('workspace.settings')
     : isSingleDocument
-      ? (activeDoc?.name ?? 'Inkdown')
-      : tabOrder.length > 1
+      ? (activeDocName ?? 'Inkdown')
+      : tabCount > 1
         ? ''
         : 'Inkdown'
 
@@ -368,4 +367,4 @@ export function Titlebar({
       </div>
     </header>
   )
-}
+})

@@ -32,8 +32,19 @@ function stripLeadingFrontmatter(markdown: string): { body: string; lineOffset: 
   }
 }
 
+// 缓存最近一次大纲解析结果，避免多处消费同一文档时重复执行 markdown-it 解析。
+let lastParsedMarkdown = ''
+let lastParsedOutline: OutlineItem[] = []
+
 /** Parses non-quoted Markdown headings into a flat document outline. */
 export function parseOutline(markdown: string): OutlineItem[] {
+  if (markdown === lastParsedMarkdown) return lastParsedOutline
+  if (!markdown) {
+    lastParsedMarkdown = ''
+    lastParsedOutline = []
+    return lastParsedOutline
+  }
+
   const { body, lineOffset } = stripLeadingFrontmatter(markdown)
   // Parsed tokens retain container nesting and source line mappings.
   const tokens = md.parse(body, {})
@@ -68,6 +79,8 @@ export function parseOutline(markdown: string): OutlineItem[] {
     })
   }
 
+  lastParsedMarkdown = markdown
+  lastParsedOutline = items
   return items
 }
 
@@ -95,20 +108,48 @@ export function buildOutlineTree(items: OutlineItem[]): OutlineTreeNode[] {
   return roots
 }
 
-/** Counts visible words and CJK characters in Markdown source. */
-export function countWords(markdown: string): number {
-  const { body } = stripLeadingFrontmatter(markdown)
-  // Formatting syntax is removed before language-specific counting.
-  const text = body
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`[^`]*`/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/[#>*_~|=-]/g, ' ')
+/** 判断字符编码是否为拉丁字母或数字。 */
+function isAsciiWordChar(code: number): boolean {
+  return (
+    (code >= 48 && code <= 57) ||
+    (code >= 65 && code <= 90) ||
+    (code >= 97 && code <= 122)
+  )
+}
 
-  // Latin tokens include contractions and numeric sequences.
-  const latinWords = text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g) ?? []
-  // Each CJK ideograph counts as one readable unit.
-  const cjkChars = text.match(/[\u3400-\u9fff]/g) ?? []
-  return latinWords.length + cjkChars.length
+/** 单遍扫描统计 Markdown 正文中的英文词数与中日韩字符数，避免分配中间数组。 */
+export function countWords(markdown: string): number {
+  if (!markdown) return 0
+  let { body } = stripLeadingFrontmatter(markdown)
+  if (!body) return 0
+
+  // 仅当文本包含对应语法标记时才剥离代码块、行内代码与链接语法。
+  if (body.includes('```')) body = body.replace(/```[\s\S]*?```/g, ' ')
+  if (body.includes('`')) body = body.replace(/`[^`]*`/g, ' ')
+  if (body.includes('![')) body = body.replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+  if (body.includes('[')) body = body.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+
+  let count = 0
+  let inLatinWord = false
+  for (let index = 0; index < body.length; index += 1) {
+    const code = body.charCodeAt(index)
+    if (code >= 0x3400 && code <= 0x9fff) {
+      count += 1
+      inLatinWord = false
+      continue
+    }
+    if (isAsciiWordChar(code)) {
+      if (!inLatinWord) {
+        count += 1
+        inLatinWord = true
+      }
+      continue
+    }
+    // 保留英文单词内部缩写撇号（直引号与弯引号），其余标点（含 -）均作为词边界。
+    if (inLatinWord && (code === 39 || code === 0x2019) && isAsciiWordChar(body.charCodeAt(index + 1))) {
+      continue
+    }
+    inLatinWord = false
+  }
+  return count
 }

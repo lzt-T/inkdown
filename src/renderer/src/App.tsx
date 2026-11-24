@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { initialSettings, t } from '@/lib/i18n'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { EditorPane } from '@/components/EditorPane'
@@ -27,10 +27,16 @@ import {
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 import { useAppUpdater } from '@/hooks/useAppUpdater'
-import { parseOutline } from '@/lib/outline'
 import { cn } from '@/lib/utils'
-import { SettingsPage } from '@/pages/settings'
-import { useEditorStore } from '@/store/editor-store'
+import { useEditorStore, type OpenDocument } from '@/store/editor-store'
+
+// 活动文档停止输入后的自动保存防抖延迟。
+const AUTOSAVE_DELAY_MS = 800
+
+// 设置页在首次进入前按需加载，减少主编辑器冷启动解析开销。
+const LazySettingsPage = lazy(() =>
+  import('@/pages/settings').then((module) => ({ default: module.SettingsPage }))
+)
 
 type AppSurface = 'editor' | 'settings'
 
@@ -39,6 +45,107 @@ const SIDEBAR_TABS = [
   { value: 'files', label: 'workspace.files' },
   { value: 'outline', label: 'workspace.outline' }
 ] as const
+
+/** 判断文档是否具备自动写入磁盘的条件。 */
+function canAutoSaveDocument(doc: OpenDocument | undefined): boolean {
+  return Boolean(
+    doc &&
+      doc.diskPath &&
+      !doc.isMissingOnDisk &&
+      doc.rawMarkdown !== doc.savedRawMarkdown
+  )
+}
+
+/** 按文档独立调度防抖自动保存，并在切换标签或窗口失焦时立即刷盘。 */
+function ActiveDocumentAutosave(): null {
+  useEffect(() => {
+    const timers = new Map<string, number>()
+
+    /** 清理指定文档挂起的防抖定时器。 */
+    const clearTimer = (key: string): void => {
+      const timer = timers.get(key)
+      if (timer !== undefined) {
+        window.clearTimeout(timer)
+        timers.delete(key)
+      }
+    }
+
+    /** 立即保存指定文档（若其已绑定有效磁盘路径且存在未保存改动）。 */
+    const flushDocumentSave = (key: string): void => {
+      clearTimer(key)
+      const store = useEditorStore.getState()
+      if (canAutoSaveDocument(store.openDocs[key])) {
+        void store.saveDocument(key)
+      }
+    }
+
+    /** 窗口离开前将所有已有本地路径的脏文档立即刷盘。 */
+    const flushAllDirtyDocuments = (): void => {
+      const { openDocs } = useEditorStore.getState()
+      for (const key of Object.keys(openDocs)) {
+        flushDocumentSave(key)
+      }
+    }
+
+    /** 为当前正在编辑的文档重置自动保存防抖计时。 */
+    const scheduleDocumentSave = (key: string): void => {
+      clearTimer(key)
+      const timer = window.setTimeout(() => {
+        timers.delete(key)
+        flushDocumentSave(key)
+      }, AUTOSAVE_DELAY_MS)
+      timers.set(key, timer)
+    }
+
+    const unsubscribe = useEditorStore.subscribe((state, prev) => {
+      // 切换离开上一个标签时立即刷盘，不等 800ms 防抖到期。
+      if (prev.activeKey && prev.activeKey !== state.activeKey) {
+        flushDocumentSave(prev.activeKey)
+      }
+
+      if (state.openDocs === prev.openDocs) return
+
+      for (const key of timers.keys()) {
+        if (!state.openDocs[key]) clearTimer(key)
+      }
+
+      for (const key of Object.keys(state.openDocs)) {
+        const doc = state.openDocs[key]
+        const prevDoc = prev.openDocs[key]
+        if (doc === prevDoc) continue
+        if (!canAutoSaveDocument(doc)) {
+          clearTimer(key)
+          continue
+        }
+        const contentOrPathChanged =
+          doc.rawMarkdown !== prevDoc?.rawMarkdown ||
+          (!prevDoc?.diskPath && Boolean(doc.diskPath))
+        if (!contentOrPathChanged) continue
+
+        // 非活动标签收到变更（如富文本防抖延迟落库）时直接立即保存。
+        if (key !== state.activeKey) flushDocumentSave(key)
+        else scheduleDocumentSave(key)
+      }
+    })
+
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === 'hidden') flushAllDirtyDocuments()
+    }
+
+    window.addEventListener('blur', flushAllDirtyDocuments)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      unsubscribe()
+      window.removeEventListener('blur', flushAllDirtyDocuments)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      for (const timer of timers.values()) window.clearTimeout(timer)
+      timers.clear()
+    }
+  }, [])
+
+  return null
+}
 
 /** Coordinates the application shell, editor workspace, and settings surface. */
 function App(): React.JSX.Element {
@@ -55,6 +162,8 @@ function App(): React.JSX.Element {
   const [isClosingSave, setIsClosingSave] = useState(false)
   // 侧栏分段按钮引用用于支持左右方向键切换焦点。
   const sidebarTabRefs = useRef<Partial<Record<(typeof SIDEBAR_TABS)[number]['value'], HTMLButtonElement | null>>>({})
+  // 跳过首次挂载时的主题回写，避免冷启动冗余写入 state.json。
+  const hasSyncedInitialThemeRef = useRef(false)
   // Theme state controls renderer styling and native window persistence.
   const theme = useEditorStore((state) => state.theme)
   // Panel visibility remains shared editor state.
@@ -63,25 +172,11 @@ function App(): React.JSX.Element {
   const sidebarView = useEditorStore((state) => state.sidebarView)
   // 页签操作同时打开侧栏并持久化当前选择。
   const setSidebarView = useEditorStore((state) => state.setSidebarView)
-  // Active document key selects document-specific shell data.
-  const activeKey = useEditorStore((state) => state.activeKey)
-  // Open documents supply pending close confirmation copy.
-  const openDocs = useEditorStore((state) => state.openDocs)
-  // Active Markdown drives outline parsing and autosave.
-  const activeRawMarkdown = useEditorStore((state) =>
-    activeKey ? (state.openDocs[activeKey]?.rawMarkdown ?? null) : null
-  )
-  // Saved Markdown establishes the dirty comparison baseline.
-  const activeSavedRawMarkdown = useEditorStore((state) =>
-    activeKey ? (state.openDocs[activeKey]?.savedRawMarkdown ?? null) : null
-  )
-  // Disk path determines whether autosave can write directly.
-  const activeDiskPath = useEditorStore((state) =>
-    activeKey ? (state.openDocs[activeKey]?.diskPath ?? null) : null
-  )
-  // 磁盘缺失状态暂停当前文档的自动保存。
-  const activeFileMissing = useEditorStore((state) =>
-    activeKey ? (state.openDocs[activeKey]?.isMissingOnDisk ?? false) : false
+  // 仅用于决定是否渲染底部状态栏，避免订阅整张 openDocs。
+  const hasActiveKey = useEditorStore((state) => Boolean(state.activeKey))
+  // 仅当存在待关闭确认标签时才读取对应文档名称。
+  const pendingCloseDocName = useEditorStore((state) =>
+    pendingCloseKey ? (state.openDocs[pendingCloseKey]?.name ?? null) : null
   )
   // Settings visibility selects the active shell surface.
   const isSettingsOpen = activeSurface === 'settings'
@@ -178,6 +273,10 @@ function App(): React.JSX.Element {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
     document.documentElement.style.colorScheme = theme
+    if (!hasSyncedInitialThemeRef.current) {
+      hasSyncedInitialThemeRef.current = true
+      return
+    }
     void window.api.settings.set({ theme })
   }, [theme])
 
@@ -202,7 +301,6 @@ function App(): React.JSX.Element {
       // 设置快照决定本次启动需要恢复的历史根目录。
       const settings = await initialSettings
       if (!mounted) return
-      useEditorStore.getState().setTheme(settings.theme)
       useEditorStore.getState().setRecent(settings.recent)
       if (settings.recent.lastWorkspace) {
         await useEditorStore
@@ -242,6 +340,12 @@ function App(): React.JSX.Element {
   useEffect(() => {
     return window.api.workspace.onChanged((directory) => {
       void useEditorStore.getState().handleWorkspaceChange(directory)
+    })
+  }, [])
+
+  useEffect(() => {
+    return window.api.file.onChanged((filePath) => {
+      void useEditorStore.getState().handleFileChange(filePath)
     })
   }, [])
 
@@ -297,36 +401,17 @@ function App(): React.JSX.Element {
 
   useEffect(() => window.api.app.setDirtyCount(updater.dirtyCount), [updater.dirtyCount])
 
-  useEffect(() => {
-    if (
-      !activeKey ||
-      !activeDiskPath ||
-      activeFileMissing ||
-      activeRawMarkdown === null ||
-      activeRawMarkdown === activeSavedRawMarkdown
-    ) {
-      return
-    }
-    // Debounce timer batches active document autosaves.
-    const timer = window.setTimeout(() => {
-      void useEditorStore.getState().saveDocument(activeKey)
-    }, 800)
-    return () => window.clearTimeout(timer)
-  }, [
-    activeKey,
-    activeDiskPath,
-    activeFileMissing,
-    activeRawMarkdown,
-    activeSavedRawMarkdown
-  ])
+  const handleCheckForUpdates = useCallback(() => {
+    void updater.checkForUpdates()
+  }, [updater])
 
-  // Parsed headings feed the outline panel for the active document.
-  const outlineItems = useMemo(() => parseOutline(activeRawMarkdown ?? ''), [activeRawMarkdown])
-  // Pending close document supplies confirmation dialog copy.
-  const pendingCloseDoc = pendingCloseKey ? openDocs[pendingCloseKey] : null
+  const handleRunUpdatePrimaryAction = useCallback(() => {
+    void updater.runPrimaryAction()
+  }, [updater])
 
   return (
     <div className="flex h-full flex-col">
+      <ActiveDocumentAutosave />
       <Titlebar
         isSettingsOpen={isSettingsOpen}
         updateState={updater.updateState}
@@ -391,7 +476,7 @@ function App(): React.JSX.Element {
                       {sidebarView === 'files' ? (
                         <FileTree editing={treeEditing} onEdit={setTreeEditing} />
                       ) : (
-                        <OutlinePanel documentKey={activeKey} items={outlineItems} />
+                        <OutlinePanel />
                       )}
                     </div>
                   </div>
@@ -411,20 +496,22 @@ function App(): React.JSX.Element {
         </div>
         {isSettingsOpen && (
           <div className="absolute inset-0 flex">
-            <SettingsPage
-              onClose={returnToEditor}
-              updateState={updater.updateState}
-              currentVersion={updater.currentVersion}
-              checkState={updater.checkState}
-              onCheckForUpdates={() => void updater.checkForUpdates()}
-              onOpenUpdate={updater.openDialog}
-            />
+            <Suspense fallback={null}>
+              <LazySettingsPage
+                onClose={returnToEditor}
+                updateState={updater.updateState}
+                currentVersion={updater.currentVersion}
+                checkState={updater.checkState}
+                onCheckForUpdates={handleCheckForUpdates}
+                onOpenUpdate={updater.openDialog}
+              />
+            </Suspense>
           </div>
         )}
       </div>
-      {!isSettingsOpen && activeKey && <StatusBar />}
+      {!isSettingsOpen && hasActiveKey && <StatusBar />}
       <AlertDialog
-        open={Boolean(pendingCloseDoc)}
+        open={Boolean(pendingCloseDocName)}
         onOpenChange={(open) => {
           if (!open && !isClosingSave) setPendingCloseKey(null)
         }}
@@ -438,7 +525,7 @@ function App(): React.JSX.Element {
               <AlertDialogTitle>{t('workspace.close-unsaved-document')}</AlertDialogTitle>
               <AlertDialogDescription>
                 {t('workspace.close-unsaved-description', {
-                  name: pendingCloseDoc?.name ?? t('workspace.current-document')
+                  name: pendingCloseDocName ?? t('workspace.current-document')
                 })}
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -480,7 +567,7 @@ function App(): React.JSX.Element {
         isOpen={updater.isDialogOpen}
         isWorking={updater.isWorking}
         onOpenChange={updater.setDialogOpen}
-        onPrimaryAction={() => void updater.runPrimaryAction()}
+        onPrimaryAction={handleRunUpdatePrimaryAction}
       />
       <Toaster theme={theme} position="bottom-right" closeButton />
     </div>

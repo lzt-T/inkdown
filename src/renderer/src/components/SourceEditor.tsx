@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { useEffect, useMemo, useRef } from 'react'
+import { memo, useDeferredValue, useEffect, useMemo, useRef } from 'react'
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
@@ -11,8 +11,20 @@ import {
   searchPanelOpen,
   setSearchQuery
 } from '@codemirror/search'
-import type { OutlineItem } from '@/lib/outline'
+import { parseOutline, type OutlineItem } from '@/lib/outline'
 import { sourceEditorPhrases } from '@/lib/source-editor-phrases'
+
+// 提升稳定扩展与配置常量，避免每次组件重渲染触发 CodeMirror 重新配置。
+const MARKDOWN_EXTENSION = markdown()
+const ZH_PHRASES_EXTENSION = EditorState.phrases.of(sourceEditorPhrases)
+const EMPTY_PHRASES_EXTENSION = EditorState.phrases.of({})
+const SOURCE_BASIC_SETUP = {
+  lineNumbers: true,
+  foldGutter: true,
+  autocompletion: true,
+  highlightActiveLine: true,
+  highlightSelectionMatches: true
+} as const
 
 function activeHeadingForLine(outline: OutlineItem[], line: number): number {
   let active = 0
@@ -24,10 +36,9 @@ function activeHeadingForLine(outline: OutlineItem[], line: number): number {
 }
 
 /** 展示源码编辑器并在语言变化时保留编辑状态。 */
-export function SourceEditor({
+export const SourceEditor = memo(function SourceEditor({
   value,
   theme,
-  outline,
   headingTarget,
   onChange,
   onActiveHeadingChange,
@@ -35,7 +46,6 @@ export function SourceEditor({
 }: {
   value: string
   theme: 'light' | 'dark'
-  outline: OutlineItem[]
   headingTarget: { index: number; nonce: number } | null
   onChange: (markdown: string) => void
   onActiveHeadingChange: (index: number) => void
@@ -46,6 +56,14 @@ export function SourceEditor({
   const { i18n } = useTranslation()
 
   const ref = useRef<ReactCodeMirrorRef>(null)
+  // 延迟解析源码大纲，避免大文档打字期间同步阻塞按键响应。
+  const deferredValue = useDeferredValue(value)
+  const outline = useMemo(() => parseOutline(deferredValue), [deferredValue])
+  // 通过 ref 向编辑器监听器和跳转效果提供最新大纲，避免扩展实例频繁重建。
+  const outlineRef = useRef(outline)
+  useEffect(() => {
+    outlineRef.current = outline
+  }, [outline])
 
   const themeExtension = useMemo(
     () =>
@@ -84,10 +102,19 @@ export function SourceEditor({
       EditorView.updateListener.of((event) => {
         if (event.selectionSet || event.docChanged) {
           const line = event.state.doc.lineAt(event.state.selection.main.head).number
-          onActiveHeadingChange(activeHeadingForLine(outline, line))
+          onActiveHeadingChange(activeHeadingForLine(outlineRef.current, line))
         }
       }),
-    [outline, onActiveHeadingChange]
+    [onActiveHeadingChange]
+  )
+
+  const phrasesExtension =
+    i18n.resolvedLanguage === 'zh-CN' ? ZH_PHRASES_EXTENSION : EMPTY_PHRASES_EXTENSION
+
+  // 稳定扩展数组引用，确保编辑过程中不会重复执行 StateEffect.reconfigure。
+  const extensions = useMemo(
+    () => [MARKDOWN_EXTENSION, EditorView.lineWrapping, listenerExtension, phrasesExtension],
+    [listenerExtension, phrasesExtension]
   )
 
   useEffect(() => {
@@ -113,7 +140,7 @@ export function SourceEditor({
   useEffect(() => {
     if (!headingTarget || !ref.current?.view) return
     const view = ref.current.view
-    const item = outline[headingTarget.index]
+    const item = outlineRef.current[headingTarget.index]
     if (!item) return
     const line = Math.min(item.line, view.state.doc.lines)
     const position = view.state.doc.line(line).from
@@ -122,7 +149,7 @@ export function SourceEditor({
       effects: EditorView.scrollIntoView(position, { y: 'start', yMargin: 20 })
     })
     onConsumeHeadingTarget()
-  }, [headingTarget, outline, onConsumeHeadingTarget])
+  }, [headingTarget, onConsumeHeadingTarget])
 
   return (
     <div className="inkdown-source-surface min-h-0 flex-1 overflow-hidden">
@@ -131,21 +158,10 @@ export function SourceEditor({
         value={value}
         onChange={onChange}
         theme={themeExtension}
-        extensions={[
-          markdown(),
-          EditorView.lineWrapping,
-          listenerExtension,
-          EditorState.phrases.of(i18n.resolvedLanguage === 'zh-CN' ? sourceEditorPhrases : {})
-        ]}
+        extensions={extensions}
         height="100%"
-        basicSetup={{
-          lineNumbers: true,
-          foldGutter: true,
-          autocompletion: true,
-          highlightActiveLine: true,
-          highlightSelectionMatches: true
-        }}
+        basicSetup={SOURCE_BASIC_SETUP}
       />
     </div>
   )
-}
+})

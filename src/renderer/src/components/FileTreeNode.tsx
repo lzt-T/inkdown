@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -24,9 +24,11 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
 import { dirname } from '@/lib/markdown-paths'
+import { IS_MAC } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import { useEditorStore } from '@/store/editor-store'
 
@@ -34,7 +36,7 @@ export interface TreeNodeProps {
   node: FileNode
   parentPath: string
   depth: number
-  expandedDirs: string[]
+  expandedDirSet: ReadonlySet<string>
   treeNodes: Record<string, FileNode[]>
   editing: EditingState | null
   onEdit: (editing: EditingState | null) => void
@@ -160,11 +162,11 @@ export function EditingRow({
 }
 
 /** 渲染可递归展开的文件树条目、未保存状态点及语义化右键菜单。 */
-export function TreeNode({
+export const TreeNode = memo(function TreeNode({
   node,
   parentPath,
   depth,
-  expandedDirs,
+  expandedDirSet,
   treeNodes,
   editing,
   onEdit,
@@ -177,27 +179,30 @@ export function TreeNode({
   const openPath = useEditorStore((state) => state.openPath)
   const expandDirectory = useEditorStore((state) => state.expandDirectory)
   const collapseDirectory = useEditorStore((state) => state.collapseDirectory)
-  const activeKey = useEditorStore((state) => state.activeKey)
-  const openDocs = useEditorStore((state) => state.openDocs)
   const [shouldFocusEditing, setShouldFocusEditing] = useState(false)
   const isEditingFromMenuRef = useRef(false)
 
   const normalizedNodePath = node.path.replace(/\\/g, '/').toLowerCase()
-  const active =
-    node.type === 'file' &&
-    normalizedNodePath === activeKey?.replace(/\\/g, '/').toLowerCase()
-  // 匹配已打开文档以在树节点显示未保存指示点。
-  const matchingOpenDoc =
-    node.type === 'file'
-      ? Object.values(openDocs).find(
-          (doc) => doc.diskPath?.replace(/\\/g, '/').toLowerCase() === normalizedNodePath
-        )
-      : undefined
-  const isDirty = Boolean(
-    matchingOpenDoc && matchingOpenDoc.rawMarkdown !== matchingOpenDoc.savedRawMarkdown
+  // 仅订阅当前节点是否为活动文档以及是否脏改的布尔值，避免编辑正文引起全树节点重渲染。
+  const active = useEditorStore(
+    (state) =>
+      node.type === 'file' &&
+      state.activeKey?.replace(/\\/g, '/').toLowerCase() === normalizedNodePath
   )
+  const isDirty = useEditorStore((state) => {
+    if (node.type !== 'file') return false
+    const directDoc = state.openDocs[node.path]
+    if (directDoc) return directDoc.rawMarkdown !== directDoc.savedRawMarkdown
+    for (const key in state.openDocs) {
+      const doc = state.openDocs[key]
+      if (doc.diskPath?.replace(/\\/g, '/').toLowerCase() === normalizedNodePath) {
+        return doc.rawMarkdown !== doc.savedRawMarkdown
+      }
+    }
+    return false
+  })
   const children = node.type === 'directory' ? treeNodes[node.path] ?? [] : []
-  const isExpanded = node.type === 'directory' && expandedDirs.includes(node.path)
+  const isExpanded = node.type === 'directory' && expandedDirSet.has(node.path)
   const renameEditing = editing?.kind === 'rename' && editing.path === node.path ? editing : null
   const childEditing =
     editing && editing.kind !== 'rename' && editing.parent === node.path ? editing : null
@@ -276,7 +281,8 @@ export function TreeNode({
               data-node-type={node.type}
               data-expanded={isExpanded ? 'true' : 'false'}
               className={cn(
-                'group relative flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-panel-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+                // 菜单打开时保留目标节点高亮，明确右键上下文归属。
+                'group relative flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-panel-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
                 active && 'bg-selected font-medium text-foreground hover:bg-selected'
               )}
               style={{ paddingLeft: 10 + depth * 14 }}
@@ -317,7 +323,7 @@ export function TreeNode({
             </button>
           </ContextMenuTrigger>
           <ContextMenuContent
-            className="w-44"
+            className="min-w-48 w-max"
             onCloseAutoFocus={(event) => {
               if (!isEditingFromMenuRef.current) return
               event.preventDefault()
@@ -326,9 +332,13 @@ export function TreeNode({
             }}
           >
             {node.type === 'file' ? (
-              <ContextMenuItem onSelect={handleOpen}>{t('workspace.open')}</ContextMenuItem>
+              <ContextMenuItem onSelect={handleOpen}>
+                <FileText />
+                {t('workspace.open')}
+              </ContextMenuItem>
             ) : (
               <ContextMenuItem onSelect={handleOpen}>
+                {isExpanded ? <ChevronDown /> : <ChevronRight />}
                 {isExpanded ? t('workspace.collapse') : t('workspace.expand')}
               </ContextMenuItem>
             )}
@@ -343,9 +353,9 @@ export function TreeNode({
                   <FolderPlus />
                   {t('workspace.new-folder')}
                 </ContextMenuItem>
+                <ContextMenuSeparator />
               </>
             )}
-            <ContextMenuSeparator />
             <ContextMenuItem
               onSelect={() => {
                 isEditingFromMenuRef.current = true
@@ -362,6 +372,7 @@ export function TreeNode({
             >
               <Pencil />
               {t('workspace.rename')}
+              <ContextMenuShortcut>F2</ContextMenuShortcut>
             </ContextMenuItem>
             <ContextMenuItem onSelect={() => void window.api.file.reveal(node.path)}>
               <ExternalLink />
@@ -371,6 +382,7 @@ export function TreeNode({
             <ContextMenuItem variant="destructive" onSelect={() => onDeleteRequest(node)}>
               <Trash2 />
               {t('workspace.delete')}
+              <ContextMenuShortcut>{IS_MAC ? '⌫' : 'Del'}</ContextMenuShortcut>
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -389,7 +401,7 @@ export function TreeNode({
               node={child}
               parentPath={node.path}
               depth={depth + 1}
-              expandedDirs={expandedDirs}
+              expandedDirSet={expandedDirSet}
               treeNodes={treeNodes}
               editing={editing}
               onEdit={onEdit}
@@ -415,4 +427,4 @@ export function TreeNode({
       )}
     </div>
   )
-}
+})

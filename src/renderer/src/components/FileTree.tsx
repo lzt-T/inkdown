@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '@/lib/i18n'
-import { useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronsDownUp, FilePlus, FolderOpen, FolderPlus, FolderX, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { FileNode } from '../../../shared/contracts'
@@ -61,7 +61,7 @@ function HeaderIconAction({ label, children, onClick }: HeaderIconActionProps): 
 }
 
 /** 渲染工作区文件树，包含头部快捷工具、空态引导与全键盘方向键导航。 */
-export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element {
+export const FileTree = memo(function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element {
   useTranslation()
 
   const workspaceRoot = useEditorStore((state) => state.workspaceRoot)
@@ -74,6 +74,32 @@ export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element 
   const collapseDirectory = useEditorStore((state) => state.collapseDirectory)
   const [pendingDelete, setPendingDelete] = useState<FileNode | null>(null)
   const treeContainerRef = useRef<HTMLDivElement>(null)
+  // 将展开目录列表转为 Set，降低大型文件树的展开态查找开销。
+  const expandedDirSet = useMemo(() => new Set(expandedDirs), [expandedDirs])
+  // 保存最新编辑状态供提交回调读取，避免每次输入刷新子节点回调引用。
+  const editingRef = useRef(editing)
+  useEffect(() => {
+    editingRef.current = editing
+  }, [editing])
+
+  /** 更新当前树内编辑行的名称。 */
+  const handleEditingValueChange = useCallback(
+    (value: string): void => {
+      onEdit((current) => (current ? { ...current, value } : null))
+    },
+    [onEdit]
+  )
+
+  /** 关闭编辑行并提交当前文件系统操作。 */
+  const handleCommitEditing = useCallback(
+    (value: string): void => {
+      const currentEditing = editingRef.current
+      if (!currentEditing) return
+      onEdit(null)
+      void commitEditing(currentEditing, value)
+    },
+    [onEdit]
+  )
 
   if (!workspaceRoot) {
     return (
@@ -126,25 +152,14 @@ export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element 
     })
   }
 
-  /** 更新当前树内编辑行的名称。 */
-  function handleEditingValueChange(value: string): void {
-    onEdit((current) => (current ? { ...current, value } : null))
-  }
-
-  /** 关闭编辑行并提交当前文件系统操作。 */
-  function handleCommitEditing(value: string): void {
-    if (!editing) return
-    const currentEditing = editing
-    onEdit(null)
-    void commitEditing(currentEditing, value)
-  }
-
   /** 确认后将目标移至回收站并刷新父目录。 */
   async function handleConfirmDelete(): Promise<void> {
     if (!pendingDelete) return
     const target = pendingDelete
     try {
       await window.api.file.trash(target.path)
+      // 先关闭已打开标签并清理目录缓存，避免应用内删除触发外部缺失横幅。
+      useEditorStore.getState().applyDeletedPath(target.path, target.type)
       await useEditorStore.getState().refreshDirectory(dirname(target.path))
       setPendingDelete(null)
       toast.success(t('workspace.moved-to-trash'))
@@ -278,7 +293,7 @@ export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element 
                 node={node}
                 parentPath={workspaceRoot}
                 depth={0}
-                expandedDirs={expandedDirs}
+                expandedDirSet={expandedDirSet}
                 treeNodes={treeNodes}
                 editing={editing}
                 onEdit={onEdit}
@@ -321,7 +336,7 @@ export function FileTree({ editing, onEdit }: FileTreeProps): React.JSX.Element 
       </AlertDialog>
     </>
   )
-}
+})
 
 /** 提交文件树的新建或重命名请求，并在失败时给出可读提示。 */
 async function commitEditing(editing: EditingState, value: string): Promise<void> {
@@ -342,7 +357,9 @@ async function commitEditing(editing: EditingState, value: string): Promise<void
       await window.api.file.createFolder(editing.parent, value)
       await useEditorStore.getState().refreshDirectory(editing.parent)
     } else {
-      await window.api.file.rename(editing.path, value)
+      const renamedNode = await window.api.file.rename(editing.path, value)
+      // 先迁移已打开标签页与目录缓存路径，防止旧路径监听将其误判为已删除。
+      useEditorStore.getState().applyRenamedPath(editing.path, renamedNode)
       await useEditorStore.getState().refreshDirectory(editing.parent)
     }
   } catch (error) {

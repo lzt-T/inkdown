@@ -16,6 +16,7 @@ import {
   basename,
   dirname
 } from '@/lib/markdown-paths'
+import { applyDeletedPathToState, applyRenamedPathToState } from '@/store/rename-sync'
 
 export interface OpenDocument {
   key: string
@@ -23,12 +24,17 @@ export interface OpenDocument {
   name: string
   rawMarkdown: string
   viewMarkdown: string
+  // 源码模式编辑期间延迟展开图片路径，切回富文本视图时再按需同步。
+  viewMarkdownStale: boolean
   savedRawMarkdown: string
   newline: '\r\n' | '\n'
   hasBom: boolean
   saving: boolean
   isMissingOnDisk: boolean
 }
+
+// 保活最近访问的富文本标签实例上限，在零重建切页与内存占用之间取得平衡。
+const MAX_MOUNTED_WYSIWYG_TABS = 4
 
 type SidebarView = 'files' | 'outline'
 type RecentEntryKind = 'file' | 'workspace'
@@ -39,6 +45,7 @@ interface EditorStore {
   expandedDirs: string[]
   openDocs: Record<string, OpenDocument>
   tabOrder: string[]
+  recentTabKeys: string[]
   activeKey: string | null
   mode: EditorMode
   theme: ThemeMode
@@ -71,7 +78,10 @@ interface EditorStore {
   expandDirectory: (directory: string) => Promise<void>
   collapseDirectory: (directory: string) => void
   refreshDirectory: (directory: string) => Promise<void>
+  applyRenamedPath: (oldPath: string, renamedNode: FileNode) => void
+  applyDeletedPath: (targetPath: string, type: FileNode['type']) => void
   handleWorkspaceChange: (directory: string) => Promise<void>
+  handleFileChange: (filePath: string) => Promise<void>
 
   openFileDialog: () => Promise<void>
   openPath: (path: string) => Promise<void>
@@ -80,6 +90,7 @@ interface EditorStore {
   newUntitled: () => void
   activateTab: (key: string) => void
   closeTab: (key: string) => void
+  updateDocumentMarkdown: (key: string, viewMarkdown: string) => void
   updateActiveMarkdown: (viewMarkdown: string) => void
   updateActiveRawMarkdown: (rawMarkdown: string) => void
   saveDocument: (key: string, promptForMissingFile?: boolean) => Promise<boolean>
@@ -100,6 +111,7 @@ function dataToDocument(data: OpenFileData): OpenDocument {
     name: data.name,
     rawMarkdown: data.content,
     viewMarkdown,
+    viewMarkdownStale: false,
     savedRawMarkdown: data.content,
     newline: data.newline,
     hasBom: data.hasBom,
@@ -117,6 +129,7 @@ function untitledDocument(): OpenDocument {
     name: t('workspace.untitled-md'),
     rawMarkdown: '',
     viewMarkdown: '',
+    viewMarkdownStale: false,
     savedRawMarkdown: '',
     newline: '\n',
     hasBom: false,
@@ -148,6 +161,74 @@ async function persistRecentPathRemoval(
   // 主进程返回值作为界面与磁盘共同采用的最新状态。
   const persistedState = await window.api.settings.set({ recent: nextRecent })
   return persistedState.recent
+}
+
+/** 将最近激活的标签键移至队首并限制保活数量。 */
+function touchRecentTab(recentTabKeys: string[], key: string): string[] {
+  return [key, ...recentTabKeys.filter((item) => item !== key)].slice(0, MAX_MOUNTED_WYSIWYG_TABS)
+}
+
+/** 在进入所见即所得视图前按需同步文档的本地图片展开内容。 */
+function syncDocViewMarkdown(doc: OpenDocument): OpenDocument {
+  if (!doc.viewMarkdownStale) return doc
+  const viewMarkdown = doc.diskPath
+    ? expandLocalImagePaths(doc.rawMarkdown, doc.diskPath)
+    : doc.rawMarkdown
+  return { ...doc, viewMarkdown, viewMarkdownStale: false }
+}
+
+/** 从磁盘读取并同步单个未修改的已打开文档，若已删除则标记缺失状态。 */
+async function reloadOpenDocument(
+  doc: OpenDocument,
+  set: (partial: (state: EditorStore) => EditorStore | Partial<EditorStore>) => void
+): Promise<void> {
+  if (!doc.diskPath) return
+  const expectedPath = doc.diskPath
+  const expectedRawMarkdown = doc.rawMarkdown
+  const expectedSavedRawMarkdown = doc.savedRawMarkdown
+  try {
+    const data = await window.api.file.read(expectedPath)
+    if (expectedRawMarkdown !== expectedSavedRawMarkdown) return
+    const next = dataToDocument(data)
+    set((state) => {
+      const current = state.openDocs[doc.key]
+      if (
+        !current ||
+        current.diskPath !== expectedPath ||
+        current.rawMarkdown !== expectedRawMarkdown ||
+        current.savedRawMarkdown !== expectedSavedRawMarkdown
+      ) {
+        return state
+      }
+      if (
+        !current.isMissingOnDisk &&
+        next.rawMarkdown === current.rawMarkdown &&
+        next.newline === current.newline &&
+        next.hasBom === current.hasBom
+      ) {
+        return state
+      }
+      return {
+        openDocs: {
+          ...state.openDocs,
+          [doc.key]: { ...next, key: current.key, saving: current.saving }
+        }
+      }
+    })
+  } catch (error) {
+    if (!isMissingPathError(error)) return
+    set((state) => {
+      // 当前文档可能已在读取期间另存到其他路径。
+      const current = state.openDocs[doc.key]
+      if (!current || current.diskPath !== expectedPath || current.isMissingOnDisk) return state
+      return {
+        openDocs: {
+          ...state.openDocs,
+          [doc.key]: { ...current, saving: false, isMissingOnDisk: true }
+        }
+      }
+    })
+  }
 }
 
 /** 统一文件树缓存键的路径分隔符。 */
@@ -222,6 +303,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   expandedDirs: [],
   openDocs: {},
   tabOrder: [],
+  recentTabKeys: [],
   activeKey: null,
   mode: 'wysiwyg',
   theme: storedTheme,
@@ -239,8 +321,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const next = get().theme === 'light' ? 'dark' : 'light'
     get().setTheme(next)
   },
-  setMode: (mode) => set({ mode }),
-  toggleMode: () => set({ mode: get().mode === 'wysiwyg' ? 'source' : 'wysiwyg' }),
+  setMode: (mode) => {
+    set((state) => {
+      if (mode !== 'wysiwyg' || !state.activeKey) return { mode }
+      const doc = state.openDocs[state.activeKey]
+      if (!doc || !doc.viewMarkdownStale) return { mode }
+      return {
+        mode,
+        openDocs: { ...state.openDocs, [state.activeKey]: syncDocViewMarkdown(doc) }
+      }
+    })
+  },
+  toggleMode: () => {
+    const nextMode = get().mode === 'wysiwyg' ? 'source' : 'wysiwyg'
+    get().setMode(nextMode)
+  },
   toggleSidebar: () => {
     // 当前页签在侧栏开关过程中保持不变。
     const { sidebarOpen, sidebarView } = get()
@@ -262,7 +357,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set({ sidebarOpen: nextSidebarOpen, sidebarView: 'outline' })
   },
   setRecent: (recent) => set({ recent }),
-  setActiveHeading: (activeHeading) => set({ activeHeading }),
+  setActiveHeading: (activeHeading) => {
+    if (get().activeHeading !== activeHeading) set({ activeHeading })
+  },
   scrollToHeading: (index) => set({ headingTarget: { index, nonce: Date.now() } }),
   consumeHeadingTarget: () => set({ headingTarget: null }),
 
@@ -382,58 +479,40 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const nodes = await window.api.workspace.scan(directory)
     get().setTreeNodes(directory, nodes)
   },
+  /** 重命名文件或目录后同步迁移内存中的标签路径与文件树缓存。 */
+  applyRenamedPath: (oldPath, renamedNode) => {
+    set((state) => applyRenamedPathToState(state, oldPath, renamedNode))
+  },
+  /** 应用内确认删除文件或目录后，关闭受影响标签页并清理目录缓存。 */
+  applyDeletedPath: (targetPath, type) => {
+    set((state) => applyDeletedPathToState(state, targetPath, type))
+  },
+  /** 从磁盘重载单个未脏改的已打开文档，文件缺失时标记为磁盘缺失。 */
+  handleFileChange: async (filePath) => {
+    const normalizedTarget = normalizeTreePath(filePath).toLowerCase()
+    const matchingDocs = Object.values(get().openDocs).filter(
+      (doc) => doc.diskPath && normalizeTreePath(doc.diskPath).toLowerCase() === normalizedTarget
+    )
+    if (matchingDocs.length === 0) return
+    await Promise.allSettled(
+      matchingDocs.map((doc) => reloadOpenDocument(doc, set))
+    )
+  },
   handleWorkspaceChange: async (directory) => {
-    await get().refreshDirectory(directory)
-    const candidates = Object.values(get().openDocs)
-    for (const doc of candidates) {
-      if (!doc.diskPath || !isInsideDir(directory, doc.diskPath)) continue
-      const expectedPath = doc.diskPath
-      const expectedRawMarkdown = doc.rawMarkdown
-      const expectedSavedRawMarkdown = doc.savedRawMarkdown
-      try {
-        const data = await window.api.file.read(expectedPath)
-        if (expectedRawMarkdown !== expectedSavedRawMarkdown) continue
-        const next = dataToDocument(data)
-        set((state) => {
-          const current = state.openDocs[doc.key]
-          if (
-            !current ||
-            current.diskPath !== expectedPath ||
-            current.rawMarkdown !== expectedRawMarkdown ||
-            current.savedRawMarkdown !== expectedSavedRawMarkdown
-          ) {
-            return state
-          }
-          if (
-            !current.isMissingOnDisk &&
-            next.rawMarkdown === current.rawMarkdown &&
-            next.newline === current.newline &&
-            next.hasBom === current.hasBom
-          ) {
-            return state
-          }
-          return {
-            openDocs: {
-              ...state.openDocs,
-              [doc.key]: { ...next, key: current.key, saving: current.saving }
-            }
-          }
-        })
-      } catch (error) {
-        if (!isMissingPathError(error)) continue
-        set((state) => {
-          // 当前文档可能已在读取期间另存到其他路径。
-          const current = state.openDocs[doc.key]
-          if (!current || current.diskPath !== expectedPath || current.isMissingOnDisk) return state
-          return {
-            openDocs: {
-              ...state.openDocs,
-              [doc.key]: { ...current, saving: false, isMissingOnDisk: true }
-            }
-          }
-        })
-      }
+    const normalizedDirectory = normalizeTreePath(directory).toLowerCase()
+    const hasCachedDirectory = Object.keys(get().treeNodes).some(
+      (cachedDir) => normalizeTreePath(cachedDir).toLowerCase() === normalizedDirectory
+    )
+    if (hasCachedDirectory) {
+      await get().refreshDirectory(directory)
     }
+    const candidates = Object.values(get().openDocs).filter(
+      (doc) => doc.diskPath && isInsideDir(directory, doc.diskPath)
+    )
+    if (candidates.length === 0) return
+    await Promise.allSettled(
+      candidates.map((doc) => reloadOpenDocument(doc, set))
+    )
   },
 
   /** 打开选择的文档，并同步其文件树位置。 */
@@ -470,9 +549,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const alreadyOpen = Object.values(state.openDocs).some(
         (item) => item.diskPath === doc.diskPath
       )
+      const recentTabKeys = touchRecentTab(state.recentTabKeys, doc.key)
       if (alreadyOpen) {
         return {
           openDocs: { ...state.openDocs, [doc.key]: doc },
+          recentTabKeys,
           activeKey: doc.key,
           activeHeading: 0
         }
@@ -480,6 +561,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return {
         openDocs: { ...state.openDocs, [doc.key]: doc },
         tabOrder: [...state.tabOrder.filter((key) => key !== doc.key), doc.key],
+        recentTabKeys,
         activeKey: doc.key,
         activeHeading: 0
       }
@@ -529,12 +611,26 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set((state) => ({
       openDocs: { ...state.openDocs, [doc.key]: doc },
       tabOrder: [...state.tabOrder, doc.key],
+      recentTabKeys: touchRecentTab(state.recentTabKeys, doc.key),
       activeKey: doc.key,
       activeHeading: 0
     }))
   },
   activateTab: (key) => {
-    if (get().openDocs[key]) set({ activeKey: key, activeHeading: 0 })
+    set((state) => {
+      const doc = state.openDocs[key]
+      if (!doc) return state
+      const recentTabKeys = touchRecentTab(state.recentTabKeys, key)
+      if (state.mode === 'wysiwyg' && doc.viewMarkdownStale) {
+        return {
+          openDocs: { ...state.openDocs, [key]: syncDocViewMarkdown(doc) },
+          recentTabKeys,
+          activeKey: key,
+          activeHeading: 0
+        }
+      }
+      return { recentTabKeys, activeKey: key, activeHeading: 0 }
+    })
   },
   closeTab: (key) => {
     set((state) => {
@@ -546,7 +642,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         const index = state.tabOrder.indexOf(key)
         activeKey = tabOrder[Math.max(0, index - 1)] ?? tabOrder[0] ?? null
       }
-      return { openDocs, tabOrder, activeKey, activeHeading: 0 }
+      let recentTabKeys = state.recentTabKeys.filter((item) => item !== key)
+      if (activeKey) recentTabKeys = touchRecentTab(recentTabKeys, activeKey)
+      return { openDocs, tabOrder, recentTabKeys, activeKey, activeHeading: 0 }
     })
   },
   updateActiveRawMarkdown: (rawMarkdown) => {
@@ -554,27 +652,35 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!activeKey) return
     const doc = openDocs[activeKey]
     if (!doc) return
-    const viewMarkdown = doc.diskPath
-      ? expandLocalImagePaths(rawMarkdown, doc.diskPath)
-      : rawMarkdown
+    // 源码模式打字时仅标记视图内容过期，切回富文本时再按需展开本地图片路径。
+    const updatedDoc: OpenDocument = doc.diskPath
+      ? { ...doc, rawMarkdown, viewMarkdownStale: true }
+      : { ...doc, rawMarkdown, viewMarkdown: rawMarkdown, viewMarkdownStale: false }
     set((state) => ({
-      openDocs: { ...state.openDocs, [activeKey]: { ...doc, rawMarkdown, viewMarkdown } }
+      openDocs: { ...state.openDocs, [activeKey]: updatedDoc }
     }))
   },
-  updateActiveMarkdown: (viewMarkdown) => {
-    const { activeKey, openDocs } = get()
-    if (!activeKey) return
-    const doc = openDocs[activeKey]
+  /** 按文档键更新所见即所得正文，防止防抖回调在切换标签后串写到当前活动文档。 */
+  updateDocumentMarkdown: (key, viewMarkdown) => {
+    const doc = get().openDocs[key]
     if (!doc) return
     const rawMarkdown = doc.diskPath
       ? collapseInkdownImagePaths(viewMarkdown, doc.diskPath)
       : viewMarkdown
-    set((state) => ({
-      openDocs: {
-        ...state.openDocs,
-        [activeKey]: { ...doc, viewMarkdown, rawMarkdown }
+    set((state) => {
+      const current = state.openDocs[key]
+      if (!current) return state
+      return {
+        openDocs: {
+          ...state.openDocs,
+          [key]: { ...current, viewMarkdown, rawMarkdown, viewMarkdownStale: false }
+        }
       }
-    }))
+    })
+  },
+  updateActiveMarkdown: (viewMarkdown) => {
+    const { activeKey } = get()
+    if (activeKey) get().updateDocumentMarkdown(activeKey, viewMarkdown)
   },
   saveDocument: (key, promptForMissingFile = false) => {
     const previous = documentSaveQueues.get(key) ?? Promise.resolve(true)

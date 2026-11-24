@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { memo, useDeferredValue, useMemo } from 'react'
 import { t } from '@/lib/i18n'
 import { relativeFromDirectory } from '@/lib/markdown-paths'
 import { countWords } from '@/lib/outline'
@@ -15,40 +16,56 @@ const STATUS_DOT_STYLES = {
 } as const
 
 /** 展示当前活动文档的交互式模式切换、字数、保存状态与精简路径。 */
-export function StatusBar(): React.JSX.Element | null {
+export const StatusBar = memo(function StatusBar(): React.JSX.Element | null {
   // 订阅语言变更，使当前界面文案同步刷新。
   useTranslation()
 
-  const activeKey = useEditorStore((state) => state.activeKey)
   const workspaceRoot = useEditorStore((state) => state.workspaceRoot)
   const mode = useEditorStore((state) => state.mode)
   const toggleMode = useEditorStore((state) => state.toggleMode)
-  const activeDoc = useEditorStore((state) => (activeKey ? (state.openDocs[activeKey] ?? null) : null))
+  const rawMarkdown = useEditorStore((state) =>
+    state.activeKey ? (state.openDocs[state.activeKey]?.rawMarkdown ?? null) : null
+  )
+  const diskPath = useEditorStore((state) =>
+    state.activeKey ? (state.openDocs[state.activeKey]?.diskPath ?? null) : null
+  )
+  const saving = useEditorStore((state) =>
+    state.activeKey ? (state.openDocs[state.activeKey]?.saving ?? false) : false
+  )
+  const isMissingOnDisk = useEditorStore((state) =>
+    state.activeKey ? (state.openDocs[state.activeKey]?.isMissingOnDisk ?? false) : false
+  )
+  const dirty = useEditorStore((state) => {
+    const doc = state.activeKey ? state.openDocs[state.activeKey] : null
+    return doc ? doc.rawMarkdown !== doc.savedRawMarkdown : false
+  })
 
-  if (!activeDoc) return null
+  // 延迟统计字数并缓存结果，防止长文档输入期同步阻塞按键。
+  const deferredMarkdown = useDeferredValue(rawMarkdown ?? '')
+  const wordCount = useMemo(() => countWords(deferredMarkdown), [deferredMarkdown])
 
-  const wordCount = countWords(activeDoc.rawMarkdown)
-  const dirty = activeDoc.rawMarkdown !== activeDoc.savedRawMarkdown
-  const statusKey = activeDoc.saving
+  if (rawMarkdown === null) return null
+
+  const statusKey = saving
     ? 'saving'
-    : activeDoc.isMissingOnDisk
+    : isMissingOnDisk
       ? 'missing'
       : dirty
         ? 'dirty'
         : 'saved'
-  const statusLabel = activeDoc.saving
+  const statusLabel = saving
     ? t('workspace.saving')
-    : activeDoc.isMissingOnDisk
+    : isMissingOnDisk
       ? t('workspace.file-deleted')
       : dirty
         ? t('workspace.unsaved')
         : t('workspace.saved')
 
   // 位于工作区内时仅显示相对路径，减少长前缀视觉噪声。
-  const displayPath = activeDoc.diskPath
+  const displayPath = diskPath
     ? workspaceRoot
-      ? relativeFromDirectory(workspaceRoot, activeDoc.diskPath)
-      : activeDoc.diskPath
+      ? relativeFromDirectory(workspaceRoot, diskPath)
+      : diskPath
     : t('workspace.unsaved-document')
 
   return (
@@ -67,16 +84,16 @@ export function StatusBar(): React.JSX.Element | null {
           aria-hidden="true"
           className={cn('size-1.5 rounded-full', STATUS_DOT_STYLES[statusKey])}
         />
-        <span className={cn(activeDoc.isMissingOnDisk && 'font-medium text-warning')}>
+        <span className={cn(isMissingOnDisk && 'font-medium text-warning')}>
           {statusLabel}
         </span>
       </span>
       <span
         className="ml-auto max-w-[55%] truncate font-mono"
-        title={activeDoc.diskPath ?? t('workspace.unsaved-document')}
+        title={diskPath ?? t('workspace.unsaved-document')}
       >
         {displayPath}
       </span>
     </footer>
   )
-}
+})

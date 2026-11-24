@@ -1,19 +1,87 @@
 import { useTranslation } from 'react-i18next'
-import { memo, useMemo, useState } from 'react'
+import { lazy, memo, Suspense, useState } from 'react'
 import { AlertTriangle, FileDown, RotateCcw } from 'lucide-react'
-import { MilkdownSurface } from '@/components/MilkdownSurface'
-import { SourceEditor } from '@/components/SourceEditor'
 import { TabsBar } from '@/components/TabsBar'
 import { Welcome } from '@/components/Welcome'
 import { Button } from '@/components/ui/button'
 import { t } from '@/lib/i18n'
-import { parseOutline } from '@/lib/outline'
 import { useEditorStore } from '@/store/editor-store'
+import type { ThemeMode } from '../../../shared/contracts'
+
+// 按需懒加载重型编辑器模块，降低欢迎页冷启动与单模式切换的解析开销。
+const LazyMilkdownSurface = lazy(() =>
+  import('@/components/MilkdownSurface').then((module) => ({ default: module.MilkdownSurface }))
+)
+const LazySourceEditor = lazy(() =>
+  import('@/components/SourceEditor').then((module) => ({ default: module.SourceEditor }))
+)
 
 interface EditorPaneProps {
   onNewFile: () => void
   onRequestCloseTab: (key: string) => void
 }
+
+/** 独立订阅单个保活文档的所见即所得视图状态，避免编辑或切页触发兄弟标签重渲染。 */
+const MilkdownTabSlot = memo(function MilkdownTabSlot({
+  docKey,
+  isActive,
+  theme
+}: {
+  docKey: string
+  isActive: boolean
+  theme: ThemeMode
+}): React.JSX.Element | null {
+  const viewMarkdown = useEditorStore((state) => state.openDocs[docKey]?.viewMarkdown ?? null)
+  const diskPath = useEditorStore((state) => state.openDocs[docKey]?.diskPath ?? null)
+  const headingTarget = useEditorStore((state) => (isActive ? state.headingTarget : null))
+  const updateDocumentMarkdown = useEditorStore((state) => state.updateDocumentMarkdown)
+  const setActiveHeading = useEditorStore((state) => state.setActiveHeading)
+  const consumeHeadingTarget = useEditorStore((state) => state.consumeHeadingTarget)
+
+  if (viewMarkdown === null) return null
+
+  return (
+    <LazyMilkdownSurface
+      documentKey={docKey}
+      isActive={isActive}
+      value={viewMarkdown}
+      theme={theme}
+      documentPath={diskPath}
+      headingTarget={headingTarget}
+      onChange={updateDocumentMarkdown}
+      onActiveHeadingChange={setActiveHeading}
+      onConsumeHeadingTarget={consumeHeadingTarget}
+    />
+  )
+})
+
+/** 独立订阅当前活动文档的源码视图状态，隔离编辑器输入对壳层的重渲染影响。 */
+const SourceEditorSlot = memo(function SourceEditorSlot({
+  docKey,
+  theme
+}: {
+  docKey: string
+  theme: ThemeMode
+}): React.JSX.Element | null {
+  const rawMarkdown = useEditorStore((state) => state.openDocs[docKey]?.rawMarkdown ?? null)
+  const headingTarget = useEditorStore((state) => state.headingTarget)
+  const updateActiveRawMarkdown = useEditorStore((state) => state.updateActiveRawMarkdown)
+  const setActiveHeading = useEditorStore((state) => state.setActiveHeading)
+  const consumeHeadingTarget = useEditorStore((state) => state.consumeHeadingTarget)
+
+  if (rawMarkdown === null) return null
+
+  return (
+    <LazySourceEditor
+      value={rawMarkdown}
+      theme={theme}
+      headingTarget={headingTarget}
+      onChange={updateActiveRawMarkdown}
+      onActiveHeadingChange={setActiveHeading}
+      onConsumeHeadingTarget={consumeHeadingTarget}
+    />
+  )
+})
 
 /** 展示活动文档、磁盘缺失恢复横幅，并将统一的新建入口传递给欢迎页。 */
 export const EditorPane = memo(function EditorPane({
@@ -23,24 +91,18 @@ export const EditorPane = memo(function EditorPane({
   useTranslation()
 
   const activeKey = useEditorStore((state) => state.activeKey)
-  const activeDoc = useEditorStore((state) => (activeKey ? (state.openDocs[activeKey] ?? null) : null))
-  const hasActiveDoc = Boolean(activeDoc)
-  const rawMarkdown = activeDoc?.rawMarkdown ?? ''
-  const viewMarkdown = activeDoc?.viewMarkdown ?? ''
-  const diskPath = activeDoc?.diskPath ?? null
-  const isMissingOnDisk = activeDoc?.isMissingOnDisk ?? false
+  const hasActiveDoc = useEditorStore((state) =>
+    Boolean(state.activeKey && state.openDocs[state.activeKey])
+  )
+  const isMissingOnDisk = useEditorStore((state) =>
+    state.activeKey ? (state.openDocs[state.activeKey]?.isMissingOnDisk ?? false) : false
+  )
+  const recentTabKeys = useEditorStore((state) => state.recentTabKeys)
   const mode = useEditorStore((state) => state.mode)
   const theme = useEditorStore((state) => state.theme)
-  const headingTarget = useEditorStore((state) => state.headingTarget)
-  const setActiveHeading = useEditorStore((state) => state.setActiveHeading)
-  const consumeHeadingTarget = useEditorStore((state) => state.consumeHeadingTarget)
-  const updateActiveMarkdown = useEditorStore((state) => state.updateActiveMarkdown)
-  const updateActiveRawMarkdown = useEditorStore((state) => state.updateActiveRawMarkdown)
   const restoreMissingDocument = useEditorStore((state) => state.restoreMissingDocument)
   const saveActiveAs = useEditorStore((state) => state.saveActiveAs)
   const [isRestoring, setIsRestoring] = useState(false)
-
-  const outline = useMemo(() => parseOutline(rawMarkdown), [rawMarkdown])
 
   /** 将内存中保留的文档重新写回原路径，并在目录缺失时回退另存为。 */
   const handleRestoreMissing = async (): Promise<void> => {
@@ -89,29 +151,23 @@ export const EditorPane = memo(function EditorPane({
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {!hasActiveDoc ? (
+        {!hasActiveDoc || !activeKey ? (
           <Welcome onNewFile={onNewFile} />
         ) : mode === 'wysiwyg' ? (
-          <MilkdownSurface
-            key={activeKey}
-            value={viewMarkdown}
-            theme={theme}
-            documentPath={diskPath}
-            headingTarget={headingTarget}
-            onChange={updateActiveMarkdown}
-            onActiveHeadingChange={setActiveHeading}
-            onConsumeHeadingTarget={consumeHeadingTarget}
-          />
+          <Suspense fallback={<div className="min-h-0 flex-1 bg-background" />}>
+            {recentTabKeys.map((tabKey) => (
+              <MilkdownTabSlot
+                key={tabKey}
+                docKey={tabKey}
+                isActive={tabKey === activeKey}
+                theme={theme}
+              />
+            ))}
+          </Suspense>
         ) : (
-          <SourceEditor
-            value={rawMarkdown}
-            theme={theme}
-            outline={outline}
-            headingTarget={headingTarget}
-            onChange={updateActiveRawMarkdown}
-            onActiveHeadingChange={setActiveHeading}
-            onConsumeHeadingTarget={consumeHeadingTarget}
-          />
+          <Suspense fallback={<div className="min-h-0 flex-1 bg-background" />}>
+            <SourceEditorSlot key={activeKey} docKey={activeKey} theme={theme} />
+          </Suspense>
         )}
       </div>
     </main>
