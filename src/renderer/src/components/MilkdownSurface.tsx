@@ -3,6 +3,7 @@ import { formatErrorMessage } from '@/lib/error-message'
 import {
   applyAnchorToWysiwyg,
   captureWysiwygPosition,
+  clamp,
   getOutlineHeadings,
   registerModePositionCapture,
   type ModeSyncTarget
@@ -23,6 +24,111 @@ const EDITOR_SYNC_DEBOUNCE_MS = 350
 // 首次进入富文本且编辑器尚未异步挂载完成时的重试上限与间隔。
 const MAX_MODE_SYNC_ATTEMPTS = 20
 const MODE_SYNC_RETRY_DELAY_MS = 50
+// 标题对齐视口顶部时的允许误差（像素）。
+const HEADING_ALIGN_TOLERANCE_PX = 2
+// 延迟布局触发展开后的最大二次校正轮数。
+const MAX_HEADING_ALIGN_CORRECTIONS = 12
+// 连续无漂移帧数阈值，用于确认周边延迟布局已稳定。
+const HEADING_STABLE_FRAMES = 2
+// scrollend 未触发时的滚动空闲兜底延时（毫秒）。
+const HEADING_SCROLL_IDLE_FALLBACK_MS = 200
+
+/** 计算将目标标题对齐到滚动容器顶部所需的 scrollTop。 */
+function getAlignedHeadingScrollTop(editor: HTMLElement, heading: HTMLElement): number {
+  const maxScroll = Math.max(0, editor.scrollHeight - editor.clientHeight)
+  const delta = heading.getBoundingClientRect().top - editor.getBoundingClientRect().top
+  return clamp(editor.scrollTop + delta, 0, maxScroll)
+}
+
+/** 平滑滚动并在延迟布局展开后闭环校正位置，直到标题稳定对齐容器顶部或被中断。 */
+function scrollHeadingToEditorTop(
+  editor: HTMLElement,
+  heading: HTMLElement,
+  onComplete: () => void
+): () => void {
+  let cancelled = false
+  let settleStarted = false
+  let frameId: number | null = null
+  let fallbackTimer: number | null = null
+  let corrections = 0
+  let stableFrames = 0
+
+  const clearSmoothWaitListeners = (): void => {
+    editor.removeEventListener('scrollend', startSettle)
+    editor.removeEventListener('scroll', scheduleIdleFallback)
+    if (fallbackTimer !== null) {
+      window.clearTimeout(fallbackTimer)
+      fallbackTimer = null
+    }
+  }
+
+  const cleanup = (): void => {
+    cancelled = true
+    clearSmoothWaitListeners()
+    if (frameId !== null) {
+      window.cancelAnimationFrame(frameId)
+      frameId = null
+    }
+  }
+
+  const finish = (): void => {
+    cleanup()
+    onComplete()
+  }
+
+  const alignStep = (): void => {
+    frameId = null
+    if (cancelled) return
+    if (!editor.isConnected || !heading.isConnected) {
+      finish()
+      return
+    }
+
+    const targetScrollTop = getAlignedHeadingScrollTop(editor, heading)
+    if (
+      Math.abs(targetScrollTop - editor.scrollTop) > HEADING_ALIGN_TOLERANCE_PX &&
+      corrections < MAX_HEADING_ALIGN_CORRECTIONS
+    ) {
+      editor.scrollTop = targetScrollTop
+      corrections += 1
+      stableFrames = 0
+      frameId = window.requestAnimationFrame(alignStep)
+      return
+    }
+
+    stableFrames += 1
+    if (stableFrames < HEADING_STABLE_FRAMES && corrections < MAX_HEADING_ALIGN_CORRECTIONS) {
+      frameId = window.requestAnimationFrame(alignStep)
+      return
+    }
+
+    finish()
+  }
+
+  function startSettle(): void {
+    if (cancelled || settleStarted) return
+    settleStarted = true
+    clearSmoothWaitListeners()
+    frameId = window.requestAnimationFrame(alignStep)
+  }
+
+  function scheduleIdleFallback(): void {
+    if (fallbackTimer !== null) window.clearTimeout(fallbackTimer)
+    fallbackTimer = window.setTimeout(startSettle, HEADING_SCROLL_IDLE_FALLBACK_MS)
+  }
+
+  const initialTarget = getAlignedHeadingScrollTop(editor, heading)
+  if (Math.abs(initialTarget - editor.scrollTop) <= HEADING_ALIGN_TOLERANCE_PX) {
+    startSettle()
+  } else {
+    editor.addEventListener('scrollend', startSettle, { once: true })
+    editor.addEventListener('scroll', scheduleIdleFallback, { passive: true })
+    scheduleIdleFallback()
+    editor.scrollTo({ top: initialTarget, behavior: 'smooth' })
+  }
+
+  return cleanup
+}
 
 /** 渲染支持本地图片导入、滚动保活与大纲同步的 Milkdown 编辑器。 */
 export const MilkdownSurface = memo(function MilkdownSurface({
@@ -56,6 +162,7 @@ export const MilkdownSurface = memo(function MilkdownSurface({
   const containerRef = useRef<HTMLDivElement>(null)
   // Navigation flag prevents programmatic scrolling from replacing the clicked heading.
   const isOutlineNavigationRef = useRef(false)
+  const cancelOutlineNavigationRef = useRef<(() => void) | null>(null)
   // 记录最新文档路径、正文与激活状态，避免滚动、采集与上传闭包捕获旧值。
   const documentPathRef = useRef(documentPath)
   const valueRef = useRef(value)
@@ -63,6 +170,13 @@ export const MilkdownSurface = memo(function MilkdownSurface({
   // 记录上次上报的活动标题与滚动位置，支持多标签保活恢复与去重通知。
   const lastActiveHeadingRef = useRef<number | null>(null)
   const savedScrollTopRef = useRef(0)
+
+  /** 中断当前大纲跳转收敛流程并恢复滚动高亮追踪。 */
+  const cancelOutlineNavigation = useCallback((): void => {
+    cancelOutlineNavigationRef.current?.()
+    cancelOutlineNavigationRef.current = null
+    isOutlineNavigationRef.current = false
+  }, [])
 
   useEffect(() => {
     documentPathRef.current = documentPath
@@ -74,7 +188,8 @@ export const MilkdownSurface = memo(function MilkdownSurface({
 
   useEffect(() => {
     isActiveRef.current = isActive
-  }, [isActive])
+    if (!isActive) cancelOutlineNavigation()
+  }, [isActive, cancelOutlineNavigation])
 
   // 为当前激活的富文本视图注册同步位置采集器。
   useEffect(() => {
@@ -132,21 +247,27 @@ export const MilkdownSurface = memo(function MilkdownSurface({
 
   useEffect(() => {
     if (!isActive || !headingTarget || !containerRef.current) return
+    const editor = containerRef.current.querySelector<HTMLElement>('.zt-md-editor')
     // Filtered headings share the same indexes as the outline panel.
     const headings = getOutlineHeadings(containerRef.current)
     // Requested heading must exist before navigation state changes.
     const targetHeading = headings[headingTarget.index]
-    if (!targetHeading) {
+    if (!editor || !targetHeading) {
       onConsumeHeadingTarget()
       return
     }
 
+    cancelOutlineNavigation()
     isOutlineNavigationRef.current = true
     lastActiveHeadingRef.current = headingTarget.index
     onActiveHeadingChange(headingTarget.index)
-    targetHeading.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    cancelOutlineNavigationRef.current = scrollHeadingToEditorTop(editor, targetHeading, () => {
+      if (editor.clientHeight > 0) savedScrollTopRef.current = editor.scrollTop
+      cancelOutlineNavigationRef.current = null
+      isOutlineNavigationRef.current = false
+    })
     onConsumeHeadingTarget()
-  }, [isActive, headingTarget, onActiveHeadingChange, onConsumeHeadingTarget])
+  }, [isActive, headingTarget, cancelOutlineNavigation, onActiveHeadingChange, onConsumeHeadingTarget])
 
   useEffect(() => {
     // Mounted editor container scopes the scrollport and rendered headings.
@@ -197,16 +318,6 @@ export const MilkdownSurface = memo(function MilkdownSurface({
       })
     }
 
-    /** Releases navigation after the browser completes programmatic scrolling. */
-    const handleEditorScrollEnd = (): void => {
-      if (!isOutlineNavigationRef.current) return
-      if (animationFrameId !== null) {
-        window.cancelAnimationFrame(animationFrameId)
-        animationFrameId = null
-      }
-      isOutlineNavigationRef.current = false
-    }
-
     /** Restores scroll tracking before direct user interaction moves the editor. */
     const handleManualScrollIntent = (): void => {
       if (!isOutlineNavigationRef.current) return
@@ -214,14 +325,13 @@ export const MilkdownSurface = memo(function MilkdownSurface({
         window.cancelAnimationFrame(animationFrameId)
         animationFrameId = null
       }
-      isOutlineNavigationRef.current = false
+      cancelOutlineNavigation()
     }
 
     const bindScrollListeners = (): boolean => {
       editor = container.querySelector<HTMLElement>('.zt-md-editor')
       if (!editor) return false
       editor.addEventListener('scroll', handleEditorScroll, { passive: true })
-      editor.addEventListener('scrollend', handleEditorScrollEnd)
       editor.addEventListener('wheel', handleManualScrollIntent, { passive: true })
       editor.addEventListener('pointerdown', handleManualScrollIntent)
       editor.addEventListener('keydown', handleManualScrollIntent)
@@ -237,14 +347,13 @@ export const MilkdownSurface = memo(function MilkdownSurface({
     return () => {
       if (timer !== null) window.clearTimeout(timer)
       editor?.removeEventListener('scroll', handleEditorScroll)
-      editor?.removeEventListener('scrollend', handleEditorScrollEnd)
       editor?.removeEventListener('wheel', handleManualScrollIntent)
       editor?.removeEventListener('pointerdown', handleManualScrollIntent)
       editor?.removeEventListener('keydown', handleManualScrollIntent)
       if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId)
-      isOutlineNavigationRef.current = false
+      cancelOutlineNavigation()
     }
-  }, [onActiveHeadingChange])
+  }, [cancelOutlineNavigation, onActiveHeadingChange])
 
   // 优先执行源码切回时的双向位置同步，否则按保活标签逻辑恢复上次滚动位置。
   useEffect(() => {
