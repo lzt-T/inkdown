@@ -12,12 +12,12 @@ export interface OutlineTreeNode extends OutlineItem {
 }
 
 // Markdown parser provides source-aware heading and blockquote tokens.
-const md = new MarkdownIt({ html: false })
+export const markdownParser = new MarkdownIt({ html: false })
 // 匹配位于文档开头的 YAML（---）或 TOML（+++）Frontmatter 块。
 const LEADING_FRONTMATTER_REGEX = /^(-{3,}|\+{3,})[ \t]*\r?\n(?:[\s\S]*?\r?\n)?\1[ \t]*(?:\r?\n|$)/
 
 /** 剥离文档头部 Frontmatter 并返回剩余正文与起始行偏移。 */
-function stripLeadingFrontmatter(markdown: string): { body: string; lineOffset: number } {
+export function stripLeadingFrontmatter(markdown: string): { body: string; lineOffset: number } {
   const match = LEADING_FRONTMATTER_REGEX.exec(markdown)
   if (!match) {
     return { body: markdown, lineOffset: 0 }
@@ -47,7 +47,7 @@ export function parseOutline(markdown: string): OutlineItem[] {
 
   const { body, lineOffset } = stripLeadingFrontmatter(markdown)
   // Parsed tokens retain container nesting and source line mappings.
-  const tokens = md.parse(body, {})
+  const tokens = markdownParser.parse(body, {})
   // Outline items exclude headings nested inside blockquotes.
   const items: OutlineItem[] = []
   // Blockquote depth tracks both ordinary and nested quote containers.

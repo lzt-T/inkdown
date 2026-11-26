@@ -17,6 +17,10 @@ import {
   dirname
 } from '@/lib/markdown-paths'
 import { applyDeletedPathToState, applyRenamedPathToState } from '@/store/rename-sync'
+import {
+  captureCurrentModePosition,
+  type ModeSyncTarget
+} from '@/lib/editor-position-sync'
 
 export interface OpenDocument {
   key: string
@@ -54,6 +58,7 @@ interface EditorStore {
   recent: RecentState
   activeHeading: number
   headingTarget: { index: number; nonce: number } | null
+  modeSyncTarget: ModeSyncTarget | null
 
   setTheme: (theme: ThemeMode) => void
   toggleTheme: () => void
@@ -66,6 +71,7 @@ interface EditorStore {
   setActiveHeading: (index: number) => void
   scrollToHeading: (index: number) => void
   consumeHeadingTarget: () => void
+  consumeModeSyncTarget: () => void
 
   openWorkspace: () => Promise<void>
   openWorkspacePath: (path: string) => Promise<void>
@@ -312,6 +318,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   recent: { workspaces: [], files: [], lastWorkspace: null },
   activeHeading: 0,
   headingTarget: null,
+  modeSyncTarget: null,
 
   setTheme: (theme) => {
     localStorage.setItem('inkdown.theme', theme)
@@ -321,13 +328,27 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const next = get().theme === 'light' ? 'dark' : 'light'
     get().setTheme(next)
   },
+  /** 切换编辑模式，并在切出前采集当前视图位置以供目标编辑器双向对齐。 */
   setMode: (mode) => {
+    const current = get()
+    if (current.mode === mode) return
+
+    const anchor =
+      current.activeKey && current.openDocs[current.activeKey]
+        ? captureCurrentModePosition(current.mode, current.activeKey)
+        : null
+    const modeSyncTarget: ModeSyncTarget | null =
+      anchor && current.activeKey
+        ? { docKey: current.activeKey, targetMode: mode, anchor, nonce: Date.now() }
+        : null
+
     set((state) => {
-      if (mode !== 'wysiwyg' || !state.activeKey) return { mode }
+      if (mode !== 'wysiwyg' || !state.activeKey) return { mode, modeSyncTarget }
       const doc = state.openDocs[state.activeKey]
-      if (!doc || !doc.viewMarkdownStale) return { mode }
+      if (!doc || !doc.viewMarkdownStale) return { mode, modeSyncTarget }
       return {
         mode,
+        modeSyncTarget,
         openDocs: { ...state.openDocs, [state.activeKey]: syncDocViewMarkdown(doc) }
       }
     })
@@ -362,6 +383,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
   scrollToHeading: (index) => set({ headingTarget: { index, nonce: Date.now() } }),
   consumeHeadingTarget: () => set({ headingTarget: null }),
+  consumeModeSyncTarget: () => set({ modeSyncTarget: null }),
 
   /** 按路径打开工作区，并清理已经失效的最近工作区记录。 */
   openWorkspacePath: async (path) => {
@@ -555,7 +577,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           openDocs: { ...state.openDocs, [doc.key]: doc },
           recentTabKeys,
           activeKey: doc.key,
-          activeHeading: 0
+          activeHeading: 0,
+          modeSyncTarget: null
         }
       }
       return {
@@ -563,7 +586,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         tabOrder: [...state.tabOrder.filter((key) => key !== doc.key), doc.key],
         recentTabKeys,
         activeKey: doc.key,
-        activeHeading: 0
+        activeHeading: 0,
+        modeSyncTarget: null
       }
     })
   },
@@ -613,7 +637,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       tabOrder: [...state.tabOrder, doc.key],
       recentTabKeys: touchRecentTab(state.recentTabKeys, doc.key),
       activeKey: doc.key,
-      activeHeading: 0
+      activeHeading: 0,
+      modeSyncTarget: null
     }))
   },
   activateTab: (key) => {
@@ -626,10 +651,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           openDocs: { ...state.openDocs, [key]: syncDocViewMarkdown(doc) },
           recentTabKeys,
           activeKey: key,
-          activeHeading: 0
+          activeHeading: 0,
+          modeSyncTarget: null
         }
       }
-      return { recentTabKeys, activeKey: key, activeHeading: 0 }
+      return { recentTabKeys, activeKey: key, activeHeading: 0, modeSyncTarget: null }
     })
   },
   closeTab: (key) => {
@@ -644,7 +670,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       }
       let recentTabKeys = state.recentTabKeys.filter((item) => item !== key)
       if (activeKey) recentTabKeys = touchRecentTab(recentTabKeys, activeKey)
-      return { openDocs, tabOrder, recentTabKeys, activeKey, activeHeading: 0 }
+      return {
+        openDocs,
+        tabOrder,
+        recentTabKeys,
+        activeKey,
+        activeHeading: 0,
+        modeSyncTarget: null
+      }
     })
   },
   updateActiveRawMarkdown: (rawMarkdown) => {
@@ -652,18 +685,19 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!activeKey) return
     const doc = openDocs[activeKey]
     if (!doc) return
-    // 源码模式打字时仅标记视图内容过期，切回富文本时再按需展开本地图片路径。
-    const updatedDoc: OpenDocument = doc.diskPath
-      ? { ...doc, rawMarkdown, viewMarkdownStale: true }
-      : { ...doc, rawMarkdown, viewMarkdown: rawMarkdown, viewMarkdownStale: false }
+    // 源码模式打字时统一延迟同步视图内容，避免隐藏保活的富文本编辑器在后台重渲染。
+    const updatedDoc: OpenDocument = { ...doc, rawMarkdown, viewMarkdownStale: true }
     set((state) => ({
       openDocs: { ...state.openDocs, [activeKey]: updatedDoc }
     }))
   },
   /** 按文档键更新所见即所得正文，防止防抖回调在切换标签后串写到当前活动文档。 */
   updateDocumentMarkdown: (key, viewMarkdown) => {
-    const doc = get().openDocs[key]
+    const { mode, openDocs } = get()
+    const doc = openDocs[key]
     if (!doc) return
+    // 切到源码模式并已有新输入时，忽略富文本切出前遗留的防抖回调。
+    if (mode === 'source' && doc.viewMarkdownStale) return
     const rawMarkdown = doc.diskPath
       ? collapseInkdownImagePaths(viewMarkdown, doc.diskPath)
       : viewMarkdown

@@ -204,6 +204,8 @@
   max-width: 900px !important;
   margin-inline: auto !important;
   padding: 40px 40px 140px !important;
+  /* 覆盖 body 的 optimizeLegibility，避免长文档中文输入触发高开销复杂塑形。 */
+  text-rendering: auto;
 }
 
 /* 源码编辑器与所见即所得共享同一画布底色与版心约束 */
@@ -228,6 +230,7 @@
   max-width: 900px !important;
   margin-inline: auto !important;
   padding: 40px 40px 140px !important;
+  text-rendering: auto;
 }
 
 .cm-editor .cm-scroller {

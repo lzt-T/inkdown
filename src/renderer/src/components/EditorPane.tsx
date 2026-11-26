@@ -34,9 +34,17 @@ const MilkdownTabSlot = memo(function MilkdownTabSlot({
   const viewMarkdown = useEditorStore((state) => state.openDocs[docKey]?.viewMarkdown ?? null)
   const diskPath = useEditorStore((state) => state.openDocs[docKey]?.diskPath ?? null)
   const headingTarget = useEditorStore((state) => (isActive ? state.headingTarget : null))
+  const modeSyncTarget = useEditorStore((state) =>
+    isActive &&
+    state.modeSyncTarget?.docKey === docKey &&
+    state.modeSyncTarget.targetMode === 'wysiwyg'
+      ? state.modeSyncTarget
+      : null
+  )
   const updateDocumentMarkdown = useEditorStore((state) => state.updateDocumentMarkdown)
   const setActiveHeading = useEditorStore((state) => state.setActiveHeading)
   const consumeHeadingTarget = useEditorStore((state) => state.consumeHeadingTarget)
+  const consumeModeSyncTarget = useEditorStore((state) => state.consumeModeSyncTarget)
 
   if (viewMarkdown === null) return null
 
@@ -48,9 +56,11 @@ const MilkdownTabSlot = memo(function MilkdownTabSlot({
       theme={theme}
       documentPath={diskPath}
       headingTarget={headingTarget}
+      modeSyncTarget={modeSyncTarget}
       onChange={updateDocumentMarkdown}
       onActiveHeadingChange={setActiveHeading}
       onConsumeHeadingTarget={consumeHeadingTarget}
+      onConsumeModeSyncTarget={consumeModeSyncTarget}
     />
   )
 })
@@ -65,20 +75,29 @@ const SourceEditorSlot = memo(function SourceEditorSlot({
 }): React.JSX.Element | null {
   const rawMarkdown = useEditorStore((state) => state.openDocs[docKey]?.rawMarkdown ?? null)
   const headingTarget = useEditorStore((state) => state.headingTarget)
+  const modeSyncTarget = useEditorStore((state) =>
+    state.modeSyncTarget?.docKey === docKey && state.modeSyncTarget.targetMode === 'source'
+      ? state.modeSyncTarget
+      : null
+  )
   const updateActiveRawMarkdown = useEditorStore((state) => state.updateActiveRawMarkdown)
   const setActiveHeading = useEditorStore((state) => state.setActiveHeading)
   const consumeHeadingTarget = useEditorStore((state) => state.consumeHeadingTarget)
+  const consumeModeSyncTarget = useEditorStore((state) => state.consumeModeSyncTarget)
 
   if (rawMarkdown === null) return null
 
   return (
     <LazySourceEditor
+      documentKey={docKey}
       value={rawMarkdown}
       theme={theme}
       headingTarget={headingTarget}
+      modeSyncTarget={modeSyncTarget}
       onChange={updateActiveRawMarkdown}
       onActiveHeadingChange={setActiveHeading}
       onConsumeHeadingTarget={consumeHeadingTarget}
+      onConsumeModeSyncTarget={consumeModeSyncTarget}
     />
   )
 })
@@ -103,6 +122,15 @@ export const EditorPane = memo(function EditorPane({
   const restoreMissingDocument = useEditorStore((state) => state.restoreMissingDocument)
   const saveActiveAs = useEditorStore((state) => state.saveActiveAs)
   const [isRestoring, setIsRestoring] = useState(false)
+  // 记录当前会话是否挂载过富文本编辑器，切入源码模式后仅隐藏保活而不卸载重建。
+  const [hasMountedWysiwyg, setHasMountedWysiwyg] = useState(false)
+
+  if (hasActiveDoc && mode === 'wysiwyg' && !hasMountedWysiwyg) {
+    setHasMountedWysiwyg(true)
+  }
+  if (!hasActiveDoc && hasMountedWysiwyg) {
+    setHasMountedWysiwyg(false)
+  }
 
   /** 将内存中保留的文档重新写回原路径，并在目录缺失时回退另存为。 */
   const handleRestoreMissing = async (): Promise<void> => {
@@ -153,21 +181,26 @@ export const EditorPane = memo(function EditorPane({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!hasActiveDoc || !activeKey ? (
           <Welcome onNewFile={onNewFile} />
-        ) : mode === 'wysiwyg' ? (
-          <Suspense fallback={<div className="min-h-0 flex-1 bg-background" />}>
-            {recentTabKeys.map((tabKey) => (
-              <MilkdownTabSlot
-                key={tabKey}
-                docKey={tabKey}
-                isActive={tabKey === activeKey}
-                theme={theme}
-              />
-            ))}
-          </Suspense>
         ) : (
-          <Suspense fallback={<div className="min-h-0 flex-1 bg-background" />}>
-            <SourceEditorSlot key={activeKey} docKey={activeKey} theme={theme} />
-          </Suspense>
+          <>
+            {(mode === 'wysiwyg' || hasMountedWysiwyg) && (
+              <Suspense fallback={<div className="min-h-0 flex-1 bg-background" />}>
+                {recentTabKeys.map((tabKey) => (
+                  <MilkdownTabSlot
+                    key={tabKey}
+                    docKey={tabKey}
+                    isActive={mode === 'wysiwyg' && tabKey === activeKey}
+                    theme={theme}
+                  />
+                ))}
+              </Suspense>
+            )}
+            {mode === 'source' && (
+              <Suspense fallback={<div className="min-h-0 flex-1 bg-background" />}>
+                <SourceEditorSlot key={activeKey} docKey={activeKey} theme={theme} />
+              </Suspense>
+            )}
+          </>
         )}
       </div>
     </main>
