@@ -148,8 +148,8 @@ importers:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)
       zt-react-milkdown:
-        specifier: ^0.1.43
-        version: 0.1.43(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/mdast@4.0.4)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(micromark-util-types@2.0.2)(micromark@4.0.2)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(unified@11.0.5)
+        specifier: ^0.1.44
+        version: 0.1.44(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/mdast@4.0.4)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(micromark-util-types@2.0.2)(micromark@4.0.2)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(unified@11.0.5)
       zustand:
         specifier: ^5.0.15
         version: 5.0.15(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8))
@@ -4575,8 +4575,8 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
-  zt-react-milkdown@0.1.43:
-    resolution: {integrity: sha512-BXBBN06tZiLUSoZgXtq9enXGSKYsoZZN4gA0sGV6EvPncV6Iwr0tBhNMEfw5o9xCJlPPqL02jRr4fdutGu5XFA==}
+  zt-react-milkdown@0.1.44:
+    resolution: {integrity: sha512-agEJu+WxvUgAKBzoR0372+OQDtsVd6uO75H+8xsO1IA8wTCKJai5PtppIKeXLKt+wuafPCG4zvjjnSapQGErew==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -10128,7 +10128,7 @@ snapshots:
 
   zod@4.4.3: {}
 
-  zt-react-milkdown@0.1.43(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/mdast@4.0.4)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(micromark-util-types@2.0.2)(micromark@4.0.2)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(unified@11.0.5):
+  zt-react-milkdown@0.1.44(@codemirror/language@6.12.4)(@codemirror/state@6.7.1)(@codemirror/view@6.43.8)(@types/mdast@4.0.4)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(micromark-util-types@2.0.2)(micromark@4.0.2)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(unified@11.0.5):
     dependencies:
       '@milkdown/core': 7.23.0
       '@milkdown/ctx': 7.23.0
