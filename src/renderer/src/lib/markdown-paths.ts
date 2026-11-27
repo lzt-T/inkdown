@@ -82,14 +82,17 @@ export function relativeFromDirectory(directory: string, target: string): string
 }
 
 export function buildInkdownUrl(filePath: string): string {
-  return `inkdown-file://local?path=${encodeURIComponent(filePath)}`
+  // encodeURIComponent 不会编码括号，额外转义避免破坏 Markdown 图片语法定界符。
+  const encoded = encodeURIComponent(filePath).replace(/[()]/g, (char) =>
+    char === '(' ? '%28' : '%29'
+  )
+  return `inkdown-file://local?path=${encoded}`
 }
 
 export function parseInkdownUrl(url: string): string | null {
   try {
     const parsed = new URL(url)
-    const path = parsed.searchParams.get('path')
-    return path ? decodeURIComponent(path) : null
+    return parsed.searchParams.get('path') || null
   } catch {
     return null
   }
@@ -116,6 +119,67 @@ export function isExternalUrl(value: string): boolean {
 
 export function isFileUrl(value: string): boolean {
   return value.trim().toLowerCase().startsWith('file:')
+}
+
+// 匹配 Markdown 图片语法末尾的合法 title（双引号、单引号或括号包裹）。
+const MARKDOWN_IMAGE_TITLE_SUFFIX =
+  /(\s+(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^()\\])*\)))$/
+
+/** 安全解码 URI 组件，遇到非法百分号序列时保留原值。 */
+function safeDecodeUriComponent(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+/** 对写入 Markdown 图片语法的相对路径编码空白、括号等特殊字符，保留中文等常规字符可读性。 */
+function encodeMarkdownRelativePath(relativePath: string): string {
+  return normalizeSlashes(relativePath).replace(/[\s()%<>]/g, (char) => {
+    const code = char.charCodeAt(0)
+    return code < 0x80
+      ? `%${code.toString(16).toUpperCase().padStart(2, '0')}`
+      : encodeURIComponent(char)
+  })
+}
+
+/** 拆分 Markdown 图片括号内的目标路径与可选 title，兼容尖括号包裹和含裸空格的历史路径。 */
+function splitImageTarget(target: string): {
+  source: string
+  remainder: string
+  bracketed: boolean
+} {
+  const trimmed = target.trim()
+  if (!trimmed) return { source: '', remainder: '', bracketed: false }
+
+  if (trimmed.startsWith('<')) {
+    for (let index = 1; index < trimmed.length; index += 1) {
+      const char = trimmed[index]
+      if (char === '\n' || char === '\r') break
+      if (char === '\\') {
+        index += 1
+        continue
+      }
+      if (char === '>') {
+        return {
+          source: trimmed.slice(1, index),
+          remainder: trimmed.slice(index + 1),
+          bracketed: true
+        }
+      }
+    }
+  }
+
+  const match = MARKDOWN_IMAGE_TITLE_SUFFIX.exec(trimmed)
+  if (match) {
+    const source = trimmed.slice(0, match.index).trim()
+    if (source) {
+      return { source, remainder: match[1], bracketed: false }
+    }
+  }
+
+  return { source: trimmed, remainder: '', bracketed: false }
 }
 
 /** 按括号平衡扫描并转换 Markdown 图片路径，无图片标记时直接短路返回。 */
@@ -165,12 +229,17 @@ function transformMarkdownImages(
     }
 
     const target = markdown.slice(sourceStart, sourceEnd)
-    const whitespace = target.search(/\s/)
-    const source = whitespace === -1 ? target.trim() : target.slice(0, whitespace).trim()
-    const remainder = whitespace === -1 ? '' : target.slice(whitespace)
-    const nextSource = transform(source)
+    const { source, remainder, bracketed } = splitImageTarget(target)
+    if (!source) {
+      output += markdown.slice(imageStart, sourceEnd + 1)
+      cursor = sourceEnd + 1
+      continue
+    }
 
-    output += markdown.slice(imageStart, sourceStart) + nextSource + remainder + ')'
+    const nextSource = transform(source)
+    const formattedSource = bracketed && nextSource === source ? `<${nextSource}>` : nextSource
+
+    output += markdown.slice(imageStart, sourceStart) + formattedSource + remainder + ')'
     cursor = sourceEnd + 1
   }
 
@@ -182,7 +251,7 @@ export function expandLocalImagePaths(markdown: string, documentPath: string): s
   return transformMarkdownImages(markdown, (source) => {
     if (isExternalUrl(source) || isFileUrl(source)) return source
 
-    const decoded = decodeURIComponent(source.trim())
+    const decoded = safeDecodeUriComponent(source.trim())
     const absolute = isAbsolutePath(decoded)
       ? normalizeSlashes(decoded)
       : resolveRelative(documentDir, decoded)
@@ -198,7 +267,7 @@ export function collapseInkdownImagePaths(markdown: string, documentPath: string
     const absolute = parseInkdownUrl(source)
     if (!absolute) return source
     if (isInsideDir(documentDir, absolute)) {
-      return relativeFromDirectory(documentDir, absolute)
+      return encodeMarkdownRelativePath(relativeFromDirectory(documentDir, absolute))
     }
     return pathToFileUrl(absolute)
   })

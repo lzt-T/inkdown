@@ -119,9 +119,9 @@ function registerProtocolHandler(): void {
   protocol.handle('inkdown-file', async (request) => {
     try {
       const url = new URL(request.url)
-      const encodedPath = url.searchParams.get('path')
-      if (!encodedPath) return new Response(t('native.missing-path-parameter'), { status: 400 })
-      const filePath = resolve(decodeURIComponent(encodedPath))
+      const decodedPath = url.searchParams.get('path')
+      if (!decodedPath) return new Response(t('native.missing-path-parameter'), { status: 400 })
+      const filePath = resolve(decodedPath)
       if (!isAuthorized(filePath)) return new Response(t('native.file-access-is-not-authorized'), { status: 403 })
       return await net.fetch(pathToFileURL(filePath).toString())
     } catch {

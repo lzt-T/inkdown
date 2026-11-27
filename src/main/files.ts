@@ -134,7 +134,8 @@ function sanitizeFileName(name: string): string {
   return cleaned || 'image'
 }
 
-async function uniquePath(directory: string, name: string): Promise<string> {
+/** 生成目标目录内不冲突的唯一路径，支持自定义文件名与序号间的分隔符。 */
+async function uniquePath(directory: string, name: string, separator = ' '): Promise<string> {
   const ext = extname(name)
   const stem = basename(name, ext)
   let candidate = join(directory, name)
@@ -142,7 +143,7 @@ async function uniquePath(directory: string, name: string): Promise<string> {
   while (true) {
     try {
       await fs.access(candidate)
-      candidate = join(directory, `${stem} ${index}${ext}`)
+      candidate = join(directory, `${stem}${separator}${index}${ext}`)
       index += 1
     } catch {
       return candidate
@@ -151,14 +152,18 @@ async function uniquePath(directory: string, name: string): Promise<string> {
 }
 
 export function fileToInkdownUrl(filePath: string): string {
-  return `inkdown-file://local?path=${encodeURIComponent(resolve(filePath))}`
+  // encodeURIComponent 不会编码括号，额外转义避免破坏 Markdown 图片语法定界符。
+  const encoded = encodeURIComponent(resolve(filePath)).replace(/[()]/g, (char) =>
+    char === '(' ? '%28' : '%29'
+  )
+  return `inkdown-file://local?path=${encoded}`
 }
 
 export function inkdownUrlToPath(url: string): string | null {
   try {
     const parsed = new URL(url)
     const path = parsed.searchParams.get('path')
-    return path ? resolve(decodeURIComponent(path)) : null
+    return path ? resolve(path) : null
   } catch {
     return null
   }
@@ -177,7 +182,7 @@ export async function importImage(input: {
   await fs.mkdir(targetDir, { recursive: true })
 
   const fileName = sanitizeFileName(input.name)
-  const destination = await uniquePath(targetDir, fileName)
+  const destination = await uniquePath(targetDir, fileName, '-')
   await fs.writeFile(destination, Buffer.from(input.data))
   // Relative path is available only when the image lives inside the document directory.
   const relativePath = isInside(input.documentDir, destination)
